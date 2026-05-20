@@ -16,6 +16,62 @@
     outline-offset: 2px;
   }
 }
+.flow-node {
+  width: 100px;
+  height: 100px;
+  background: #6c757d; /* body color */
+  border: 1px solid #555;
+  border-radius: 0px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+.flow-node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #6ba7a6; /* teal */
+  padding: 2px 4px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.flow-node-menu {
+  background: #f4a261; /* orange */
+  border: none;
+  color: #222;
+  font-weight: bold;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+
+.flow-node-body {
+  position: relative;
+  height: calc(100% - 20px);
+}
+.flow-node-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  opacity: 0.25;
+  transform: translate(-50%, -50%);
+  pointer-events: none; /* icon should never block dragging */
+}
+
+.flow-node-handle {
+  width: 10px !important;
+  height: 10px !important;
+  background: #ccc;
+  border-radius: 2px;
+}
 
 .hero {
   position: relative;
