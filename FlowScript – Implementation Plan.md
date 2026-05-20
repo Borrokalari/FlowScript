@@ -4,14 +4,16 @@
 
 Set up the foundation so you don’t fight your tools later.
 
-### **0.1 Install & prepare**
+- [x] ### **0.1 Install & prepare**
+
 
 - Install Node.js (LTS)
 - Install VS Code
 - Install Git
 - Install Electron Forge or Electron Builder
 
-### **0.2 Create the React Flow bundle project**
+- [x] ### **0.2 Create the React Flow bundle project**
+
 
 You’ll need a separate folder for the embedded JS app:
 
