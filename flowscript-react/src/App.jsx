@@ -1,3 +1,4 @@
+import { ReactFlowProvider } from 'reactflow';
 import React, { useEffect } from 'react';
 import ReactFlow, {
   Handle,
@@ -5,6 +6,8 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   addEdge,
+  applyNodeChanges,
+  applyEdgeChanges,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './App.css';
@@ -64,25 +67,32 @@ const initialNodes = [
 const initialEdges = [];
 
 export default function App() {
-  const [nodes, setNodes, handleNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, handleEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes] = useNodesState(initialNodes);
+  const [edges, setEdges] = useEdgesState(initialEdges);
 
-  // Register setters into the engine
+  //
+  // 1. ENGINE INITIALIZATION
+  //
   useEffect(() => {
     if (window.FlowScriptReact) {
-      window.FlowScriptReact._setNodes = setNodes;
-      window.FlowScriptReact._setEdges = setEdges;
+      window.FlowScriptReact.init({
+        setNodes,
+        setEdges,
+        initialNodes,
+        initialEdges,
+      });
     }
-  }, [setNodes, setEdges]);
+  }, []);
 
-  // ⭐ DELETE KEY HANDLER (edges)
+  //
+  // 2. DELETE KEY HANDLER (edges only)
+  //
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Delete" || e.key === "Backspace") {
         setEdges((eds) => {
           const remaining = eds.filter((edge) => !edge.selected);
 
-          // Emit deletion events for each removed edge
           eds.forEach((edge) => {
             if (edge.selected) {
               window.FlowScriptReact?.emit("edgeDeleted", { id: edge.id });
@@ -98,68 +108,90 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setEdges]);
 
+  //
+  // 3. SELECTION HANDLER (ReactFlow → engine)
+  //
+  const onSelectionChange = (params) => {
+    const selectedNode = params.nodes?.[0];
+    const id = selectedNode ? selectedNode.id : null;
+
+    window.FlowScriptReact?.onSelectionChanged(id);
+  };
+
+  //
+  // 4. NODE MOVEMENT HANDLER (ReactFlow → engine)
+  //
+  const onNodeDragStop = (event, node) => {
+    window.FlowScriptReact?.onNodePositionChanged(node.id, node.position);
+  };
+
+  //
+  // 5. EDGE CHANGES (ReactFlow → engine)
+  //
+  const onEdgesChangeWrapped = (changes) => {
+    setEdges((eds) => applyEdgeChanges(changes, eds));
+
+    changes.forEach((change) => {
+      if (change.type === 'remove' && change.id) {
+        window.FlowScriptReact?.emit('edgeDeleted', { id: change.id });
+      }
+    });
+  };
+
+  //
+  // 6. NODE CHANGES (ReactFlow → engine)
+  //
+  const onNodesChangeWrapped = (changes) => {
+    setNodes((nds) => applyNodeChanges(changes, nds));
+
+    changes.forEach((change) => {
+      if (change.type === 'position' && change.position) {
+        window.FlowScriptReact?.onNodePositionChanged(change.id, change.position);
+      }
+    });
+  };
+
+  //
+  // 7. EDGE CREATION (ReactFlow → engine)
+  //
+  const onConnect = (connection) => {
+    setEdges((eds) => {
+      const next = addEdge(connection, eds);
+
+      const newEdge = next[next.length - 1];
+      if (newEdge) {
+        window.FlowScriptReact?.emit('edgeCreated', {
+          id: newEdge.id,
+          source: newEdge.source,
+          target: newEdge.target,
+        });
+      }
+
+      return next;
+    });
+  };
+
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#363b40' }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        nodesConnectable={true}
-        nodesDraggable={true}
-        elementsSelectable={true}
-        connectionMode="loose"
-        defaultEdgeOptions={{ type: 'default' }}
+      <ReactFlowProvider>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          proOptions={{ hideAttribution: true }}
+          nodesConnectable={true}
+          nodesDraggable={true}
+          elementsSelectable={true}
+          connectionMode="loose"
+          defaultEdgeOptions={{ type: 'default' }}
 
-        onNodesChange={(changes) => {
-          handleNodesChange(changes);
-
-          changes.forEach((change) => {
-            if (change.type === 'position' && change.position) {
-              window.FlowScriptReact?.emit('nodeMoved', {
-                id: change.id,
-                x: change.position.x,
-                y: change.position.y,
-              });
-            }
-          });
-        }}
-
-        onEdgesChange={(changes) => {
-          handleEdgesChange(changes);
-
-          changes.forEach((change) => {
-            if (change.type === 'remove' && change.id) {
-              window.FlowScriptReact?.emit('edgeDeleted', {
-                id: change.id,
-              });
-            }
-          });
-        }}
-
-        onConnect={(connection) => {
-          setEdges((eds) => {
-            const next = addEdge(connection, eds);
-
-            const newEdge = next[next.length - 1];
-            if (newEdge) {
-              window.FlowScriptReact?.emit('edgeCreated', {
-                id: newEdge.id,
-                source: newEdge.source,
-                target: newEdge.target,
-              });
-            }
-
-            return next;
-          });
-        }}
-
-        onSelectionChange={(params) => {
-          window.FlowScriptReact?.emit('selectionChanged', {
-            nodes: params.nodes.map((n) => n.id),
-            edges: params.edges.map((e) => e.id),
-          });
-        }}
-      />
+          onNodesChange={onNodesChangeWrapped}
+          onEdgesChange={onEdgesChangeWrapped}
+          onConnect={onConnect}
+          onSelectionChange={onSelectionChange}
+          onNodeDragStop={onNodeDragStop}
+        />
+      </ReactFlowProvider>
     </div>
   );
 }

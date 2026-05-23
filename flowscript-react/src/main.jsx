@@ -1,10 +1,8 @@
-import './engine.js';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 
-// This function mounts the React Flow app into any element
 export function mountReactFlow(elementId, options = {}) {
   const container = document.getElementById(elementId);
 
@@ -23,3 +21,6 @@ export function mountReactFlow(elementId, options = {}) {
 
   return root;
 }
+
+// ⭐ Make it available to Bubble
+window.mountReactFlow = mountReactFlow;
