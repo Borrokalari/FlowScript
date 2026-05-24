@@ -1,10 +1,237 @@
 import React from 'react';
 import { ReactFlowProvider } from 'reactflow';
-import FlowCanvas, { NODE_ICONS, rootNodes, rootEdges } from './FlowCanvas';
+import FlowCanvas, { NODE_ICONS } from './FlowCanvas';
+import flowscriptLogo from './FlowScript_Logo.png';
 import CodeEditor from './CodeEditor';
 import { serialize } from './dsl/serializer';
 import { parse }     from './dsl/parser';
 import './App.css';
+
+// ── File serialization ────────────────────────────────────────────────────────
+
+function serializeToFile(nodes, edges) {
+  const clean = (n) => {
+    if (n.type === 'propertyNode') return n;
+    const { icon, prevIcon, ...data } = n.data;
+    const cleaned = { ...data };
+    if (cleaned.innerNodes) cleaned.innerNodes = cleaned.innerNodes.map(clean);
+    return { ...n, data: cleaned };
+  };
+  return JSON.stringify({ version: 1, nodes: nodes.map(clean), edges }, null, 2);
+}
+
+function serializeNodeForTemplate(node) {
+  if (node.type === 'propertyNode') return node;
+  const { icon, prevIcon, ...data } = node.data;
+  const cleaned = { ...data };
+  if (cleaned.innerNodes) cleaned.innerNodes = cleaned.innerNodes.map(serializeNodeForTemplate);
+  return { ...node, data: cleaned };
+}
+
+function deserializeFromFile(jsonStr) {
+  const { nodes, edges } = JSON.parse(jsonStr);
+  const restore = (n) => {
+    if (n.type === 'propertyNode') return n;
+    const icon = NODE_ICONS[n.data.nodeType] ?? NODE_ICONS.action;
+    const data = { ...n.data, icon };
+    if (n.data.prevNodeType) data.prevIcon = NODE_ICONS[n.data.prevNodeType] ?? NODE_ICONS.action;
+    if (data.innerNodes) data.innerNodes = data.innerNodes.map(restore);
+    return { ...n, data };
+  };
+  return { nodes: nodes.map(restore), edges };
+}
+
+// ── Themes ────────────────────────────────────────────────────────────────────
+
+const THEMES = {
+  'FlowScript (Default)': {
+    nodeBodyBg:   '#6c757d',
+    nodeBorder:   '#555555',
+    nodeHeaderBg: '#6ba7a6',
+    nodeHandleBg: '#52d7c6',
+    nodeMenuBg:   '#f4a261',
+  },
+  Shard: {
+    nodeBodyBg:   '#9E77ED',
+    nodeBorder:   '#555555',
+    nodeHeaderBg: '#5F35B2',
+    nodeHandleBg: '#52d7c6',
+    nodeMenuBg:   '#8FB2C7',
+  },
+};
+
+const DEFAULT_PREFS = { theme: 'FlowScript (Default)', nodeTextColor: '#e0e0e0', edgeThickness: 1.5 };
+
+// ── Menu definitions ──────────────────────────────────────────────────────────
+
+const MENUS = [
+  {
+    label: 'File',
+    items: [
+      { label: 'New FlowScript', action: 'file:new' },
+      { label: 'New Frame', disabled: true },
+      { label: 'New Window', action: 'app:newWindow' },
+      { type: 'sep' },
+      { label: 'Open...', action: 'file:open' },
+      { label: 'Open Recent', arrow: true, submenuKey: 'recentFiles' },
+      { type: 'sep' },
+      { label: 'Save', action: 'file:save' },
+      { label: 'Save As...', action: 'file:saveAs' },
+      { type: 'sep' },
+      { label: 'Preferences...', action: 'app:preferences' },
+      { type: 'sep' },
+      { label: 'Close', action: 'app:close' },
+    ],
+  },
+  {
+    label: 'Help',
+    items: [
+      { label: "What's New in FlowScript?", action: 'help:whatsnew' },
+      { type: 'sep' },
+      { label: 'QuickStart', action: 'help:quickstart' },
+      { type: 'sep' },
+      { label: 'My Account...', disabled: true },
+      { type: 'sep' },
+      { label: 'Check for Updates...', disabled: true },
+      { label: 'About...', action: 'app:about' },
+    ],
+  },
+];
+
+function TitleBar({ onAction, fileName, isDirty, recentFiles, onOpenRecent, onClearRecent }) {
+  const [openIdx, setOpenIdx] = React.useState(null);
+  const [submenuOpenIdx, setSubmenuOpenIdx] = React.useState(null);
+  const submenuTimer = React.useRef(null);
+  const [maximized, setMaximized] = React.useState(false);
+  const barRef = React.useRef(null);
+  const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
+
+  const openSubmenu  = (j) => { clearTimeout(submenuTimer.current); setSubmenuOpenIdx(j); };
+  const closeSubmenu = ()  => { submenuTimer.current = setTimeout(() => setSubmenuOpenIdx(null), 150); };
+
+  React.useEffect(() => { if (openIdx === null) setSubmenuOpenIdx(null); }, [openIdx]);
+
+  React.useEffect(() => {
+    if (!isElectron) return;
+    window.electronAPI.isMaximized().then(setMaximized);
+    window.electronAPI.onMaximizeChange(setMaximized);
+  }, [isElectron]);
+
+  React.useEffect(() => {
+    if (openIdx === null) return;
+    const close = (e) => {
+      if (barRef.current && !barRef.current.contains(e.target)) setOpenIdx(null);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [openIdx]);
+
+  return (
+    <div className="title-bar" ref={barRef}>
+      {/* Logo */}
+      <img src={flowscriptLogo} className="title-bar-logo" alt="FlowScript" />
+
+      {/* Menus */}
+      <div className="title-bar-menus">
+        {MENUS.map((menu, i) => (
+          <div key={menu.label} className="menu-bar-entry">
+            <button
+              className={`menu-bar-btn${openIdx === i ? ' menu-bar-btn--active' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); setOpenIdx(openIdx === i ? null : i); }}
+              onMouseEnter={() => { if (openIdx !== null) setOpenIdx(i); }}
+            >
+              {menu.label}
+            </button>
+            {openIdx === i && (
+              <div className="menu-dropdown">
+                {menu.items.map((item, j) =>
+                  item.type === 'sep' ? (
+                    <div key={j} className="menu-sep" />
+                  ) : item.submenuKey === 'recentFiles' ? (
+                    <div key={j} className="menu-item-wrap" onMouseEnter={() => openSubmenu(j)} onMouseLeave={closeSubmenu}>
+                      <button className="menu-item">
+                        <span>{item.label}</span>
+                        <span className="menu-item-arrow">›</span>
+                      </button>
+                      {submenuOpenIdx === j && (
+                        <div className="menu-submenu" onMouseEnter={() => openSubmenu(j)} onMouseLeave={closeSubmenu}>
+                          {!recentFiles?.length ? (
+                            <button className="menu-item menu-item--disabled" disabled><span>No recent files</span></button>
+                          ) : recentFiles.map((f, k) => (
+                            <button
+                              key={k}
+                              className="menu-item"
+                              title={f.filePath}
+                              onMouseDown={(e) => { e.preventDefault(); setOpenIdx(null); onOpenRecent?.(f.filePath); }}
+                            >
+                              <span>{f.fileName}</span>
+                            </button>
+                          ))}
+                          <div className="menu-sep" />
+                          <button className="menu-item" onMouseDown={(e) => { e.preventDefault(); setOpenIdx(null); onClearRecent?.(); }}>
+                            <span>Clear List</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      key={j}
+                      className={`menu-item${item.disabled ? ' menu-item--disabled' : ''}`}
+                      disabled={item.disabled}
+                      onMouseDown={(e) => { e.preventDefault(); if (!item.disabled) { setOpenIdx(null); if (item.action) onAction?.(item.action); } }}
+                      onMouseEnter={closeSubmenu}
+                    >
+                      <span>{item.label}</span>
+                      {item.arrow && <span className="menu-item-arrow">›</span>}
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Drag area + title */}
+      <div
+        className="title-bar-drag"
+        onDoubleClick={() => isElectron && window.electronAPI.maximize()}
+      >
+        <span className="title-bar-title">
+          {fileName ? `FlowScript — ${fileName}${isDirty ? ' *' : ''}` : `FlowScript${isDirty ? ' *' : ''}`}
+        </span>
+      </div>
+
+      {/* Window controls — only in Electron */}
+      {isElectron && (
+        <div className="title-bar-controls">
+          <button className="winctl winctl-min" title="Minimize" onClick={() => window.electronAPI.minimize()}>
+            <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+          </button>
+          <button className="winctl winctl-max" title={maximized ? 'Restore' : 'Maximize'} onClick={() => window.electronAPI.maximize()}>
+            {maximized ? (
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1">
+                <rect x="0" y="3" width="7" height="7"/>
+                <path d="M3 3V1h6v6H7"/>
+              </svg>
+            ) : (
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1">
+                <rect x="0.5" y="0.5" width="9" height="9"/>
+              </svg>
+            )}
+          </button>
+          <button className="winctl winctl-close" title="Close" onClick={() => window.electronAPI.close()}>
+            <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1.1">
+              <line x1="0" y1="0" x2="10" y2="10"/>
+              <line x1="10" y1="0" x2="0" y2="10"/>
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Commits every nested level of navStack back up to root using the live
 // canvas state, mirroring the logic in handleExitLevel.
@@ -19,14 +246,16 @@ function buildRootState(navStack, liveNodes, liveEdges) {
   for (let depth = navStack.length - 1; depth > 0; depth--) {
     const enteredId    = navStack[depth].levelId;
     const parentLevel  = navStack[depth - 1];
-    const persistNodes = nodes.filter(n => !n.id.startsWith('__gateway_'));
+    const persistNodes  = nodes.filter(n => !n.id.startsWith('__gateway_'));
+    const regularNodes  = persistNodes.filter(n => n.type === 'flowNode');
+    const propertyNodes = persistNodes.filter(n => n.type === 'propertyNode');
 
     nodes = parentLevel.nodes.map(n => {
       if (n.id !== enteredId) return n;
-      let data = { ...n.data, innerNodes: persistNodes, innerEdges: edges };
-      if (persistNodes.length > 0 && n.data.nodeType !== 'group') {
+      let data = { ...n.data, innerNodes: persistNodes, innerEdges: edges, hasProperties: propertyNodes.length > 0 };
+      if (regularNodes.length > 0 && n.data.nodeType !== 'group') {
         data = { ...data, prevNodeType: n.data.nodeType, prevIcon: n.data.icon, nodeType: 'group', icon: NODE_ICONS.group };
-      } else if (persistNodes.length === 0 && n.data.nodeType === 'group') {
+      } else if (regularNodes.length === 0 && n.data.nodeType === 'group') {
         data = { ...data, nodeType: n.data.prevNodeType || 'action', icon: n.data.prevIcon || NODE_ICONS.action, prevNodeType: undefined, prevIcon: undefined };
       }
       return { ...n, data };
@@ -38,41 +267,107 @@ function buildRootState(navStack, liveNodes, liveEdges) {
 }
 
 function parseCommand(input) {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
+  const t = input.trim();
+  if (!t) return null;
+  let m;
 
-  // addNode(name) in, out, ... — legacy explicit syntax
-  const explicit = trimmed.match(/^addNode\(([^)]*)\)(.*)$/);
-  if (explicit) {
-    const name  = explicit[1].trim() || 'new node';
-    const parts = explicit[2].trim().split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
-    return {
-      label:    name,
-      nodeType: 'action',
-      icon:     NODE_ICONS.action,
-      pinsIn:   parts.filter((p) => p === 'in').length  || 1,
-      pinsOut:  parts.filter((p) => p === 'out').length || 1,
-    };
+  if (/^showHelp$/i.test(t))       return { command: 'showHelp' };
+  if (/^graph\.zoomall$/i.test(t)) return { command: 'graph.zoomall' };
+
+  m = t.match(/^saveTemplate\(([^)]*)\)$/i);
+  if (m) return { command: 'saveTemplate', name: m[1].trim() };
+
+  m = t.match(/^deleteNode\(([^)]*)\)$/i);
+  if (m) return { command: 'deleteNode', name: m[1].trim() };
+
+  m = t.match(/^addProperty\(([^)]*)\)$/i);
+  if (m) return { command: 'addProperty', name: m[1].trim() };
+
+  m = t.match(/^addPins\(([^)]*)\)\s*:\s*(.+)$/i);
+  if (m) {
+    const inM  = m[2].match(/in\s+(\d+)/i);
+    const outM = m[2].match(/out\s+(\d+)/i);
+    return { command: 'addPins', name: m[1].trim(),
+      pinsIn:  inM  ? parseInt(inM[1],  10) : 0,
+      pinsOut: outM ? parseInt(outM[1], 10) : 0 };
   }
 
-  // Plain label — "nodeName" creates an action node with 1 in, 1 out
-  return { label: trimmed, nodeType: 'action', icon: NODE_ICONS.action, pinsIn: 1, pinsOut: 1 };
+  m = t.match(/^changeType\(([^)]*)\)\s*:\s*(\w+)$/i);
+  if (m) return { command: 'changeType', name: m[1].trim(), nodeType: m[2].trim().toLowerCase() };
+
+  m = t.match(/^renameNode\(([^)]*)\)\s*:\s*(.+)$/i);
+  if (m) return { command: 'renameNode', name: m[1].trim(), newName: m[2].trim() };
+
+  m = t.match(/^addNode\(([^)]*)\)(.*)$/i);
+  if (m) {
+    const name  = m[1].trim() || 'new node';
+    const parts = m[2].trim().split(',').map(p => p.trim().toLowerCase()).filter(Boolean);
+    return { command: 'addNode', label: name, nodeType: 'action', icon: NODE_ICONS.action,
+      pinsIn:  parts.filter(p => p === 'in').length  || 1,
+      pinsOut: parts.filter(p => p === 'out').length || 1 };
+  }
+
+  return { command: 'addNode', label: t, nodeType: 'action', icon: NODE_ICONS.action, pinsIn: 1, pinsOut: 1 };
 }
 
 export default function App() {
-  const [mode, setMode]       = React.useState('graph');
-  const [command, setCommand] = React.useState('');
-  const [dslText, setDslText] = React.useState('');
+  const [mode, setMode]           = React.useState('graph');
+  const [command, setCommand]     = React.useState('');
+  const [dslText, setDslText]     = React.useState('');
+  const [showHelp, setShowHelp]   = React.useState(false);
+  const [fileName, setFileName]   = React.useState(null);
+  const [isDirty, setIsDirty]           = React.useState(false);
+  const [textFileMode, setTextFileMode] = React.useState(null); // null | { language }
+  const [recentFiles, setRecentFiles]   = React.useState([]);
+  const [appVersion, setAppVersion]     = React.useState('');
+  const [showAbout, setShowAbout]       = React.useState(false);
+  const [prefs, setPrefs]               = React.useState(DEFAULT_PREFS);
+  const [prefsDraft, setPrefsDraft]     = React.useState(null);
+  const [showPrefs, setShowPrefs]       = React.useState(false);
+  const [templates, setTemplates]           = React.useState([]);
+  const [showTemplates, setShowTemplates]   = React.useState(false);
+  const [pendingTemplateNode, setPendingTemplateNode] = React.useState(null);
+  const [templateDraftName, setTemplateDraftName]     = React.useState('');
   const canvasRef = React.useRef(null);
 
   const [navStack, setNavStack] = React.useState([
-    { levelId: null, nodes: rootNodes, edges: rootEdges },
+    { levelId: null, nodes: [], edges: [] },
   ]);
+  const [loadKey, setLoadKey] = React.useState(0);
 
   const currentLevel = navStack[navStack.length - 1];
 
+  // ── First-launch / new-window initial load ──────────────────────────────────
+  React.useEffect(() => {
+    if (!window.electronAPI) return;
+    window.electronAPI.getRecentFiles().then(setRecentFiles);
+    window.electronAPI.getVersion().then(setAppVersion);
+    window.electronAPI.getTemplates().then(setTemplates);
+    window.electronAPI.getPreferences().then((saved) => {
+      if (saved && Object.keys(saved).length > 0) {
+        setPrefs((p) => ({ ...p, ...saved }));
+      }
+    });
+    window.electronAPI.getInitialState().then((state) => {
+      if (state.textFile) {
+        const { content, fileName, language } = state.textFile;
+        setFileName(fileName);
+        setTextFileMode({ language });
+        setDslText(content);
+        setMode('code');
+        setIsDirty(false);
+      } else if (state.content) {
+        const { nodes, edges } = deserializeFromFile(state.content);
+        setNavStack([{ levelId: null, nodes, edges }]);
+        setLoadKey((k) => k + 1);
+        setIsDirty(false);
+      }
+    });
+  }, []);
+
   const handleModeChange = React.useCallback((newMode) => {
     if (newMode === mode) return;
+    if (newMode === 'graph' && textFileMode) return;
     if (newMode === 'code') {
       const live      = canvasRef.current?.getState();
       const liveNodes = live?.nodes ?? navStack[navStack.length - 1].nodes;
@@ -85,13 +380,225 @@ export default function App() {
       setNavStack([{ levelId: null, nodes, edges }]);
     }
     setMode(newMode);
-  }, [mode, dslText, navStack]);
+  }, [mode, dslText, navStack, textFileMode]);
+
+  // ── File operations ─────────────────────────────────────────────────────────
+
+  const getSerializedState = React.useCallback(() => {
+    const live      = canvasRef.current?.getState();
+    const liveNodes = live?.nodes ?? navStack[navStack.length - 1].nodes;
+    const liveEdges = live?.edges ?? navStack[navStack.length - 1].edges;
+    const root      = buildRootState(navStack, liveNodes, liveEdges);
+    return serializeToFile(root.nodes, root.edges);
+  }, [navStack]);
+
+  const handleFileNew = React.useCallback(() => {
+    window.electronAPI?.newFile();
+    setFileName(null);
+    setIsDirty(false);
+    setTextFileMode(null);
+    setNavStack([{ levelId: null, nodes: [], edges: [] }]);
+    setLoadKey((k) => k + 1);
+    setMode('graph');
+    setDslText('');
+  }, []);
+
+  const refreshRecentFiles = React.useCallback(() => {
+    window.electronAPI?.getRecentFiles().then(setRecentFiles);
+  }, []);
+
+  const handleOpenRecent = React.useCallback(async (filePath) => {
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.openRecentFile(filePath);
+    if (!result.success) { refreshRecentFiles(); return; }
+    const ext = result.fileName.split('.').pop().toLowerCase();
+    if (ext === 'flowscript') {
+      const { nodes, edges } = deserializeFromFile(result.content);
+      setFileName(result.fileName);
+      setIsDirty(false);
+      setTextFileMode(null);
+      setNavStack([{ levelId: null, nodes, edges }]);
+      setLoadKey((k) => k + 1);
+      setMode('graph');
+      setDslText('');
+    } else {
+      const language = ext === 'md' ? 'markdown' : 'plaintext';
+      const hasNodes = (navStack[0]?.nodes.length ?? 0) > 0;
+      if (hasNodes) {
+        window.electronAPI.openTextInNewWindow(result.content, result.filePath, result.fileName, language);
+      } else {
+        await window.electronAPI.loadTextLocally(result.filePath);
+        setFileName(result.fileName);
+        setIsDirty(false);
+        setTextFileMode({ language });
+        setDslText(result.content);
+        setMode('code');
+      }
+    }
+    refreshRecentFiles();
+  }, [navStack, refreshRecentFiles]);
+
+  const handleClearRecent = React.useCallback(async () => {
+    await window.electronAPI?.clearRecentFiles();
+    setRecentFiles([]);
+  }, []);
+
+  const handleQuickStart = React.useCallback(async () => {
+    if (!window.electronAPI) return;
+    const dirty = fileName !== null || (navStack[0]?.nodes.length ?? 0) > 0;
+    if (dirty) {
+      window.electronAPI.openTutorialNewWindow();
+    } else {
+      const content = await window.electronAPI.getTutorialContent();
+      if (!content) return;
+      const { nodes, edges } = deserializeFromFile(content);
+      setNavStack([{ levelId: null, nodes, edges }]);
+      setLoadKey((k) => k + 1);
+      setIsDirty(false);
+      setMode('graph');
+      setDslText('');
+    }
+  }, [fileName, navStack]);
+
+  const handleFileOpen = React.useCallback(async () => {
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.openFile();
+    if (!result.success) return;
+    const ext = result.fileName.split('.').pop().toLowerCase();
+    if (ext === 'flowscript') {
+      const { nodes, edges } = deserializeFromFile(result.content);
+      setFileName(result.fileName);
+      setIsDirty(false);
+      setTextFileMode(null);
+      setNavStack([{ levelId: null, nodes, edges }]);
+      setLoadKey((k) => k + 1);
+      setMode('graph');
+      setDslText('');
+    } else {
+      const language = ext === 'md' ? 'markdown' : 'plaintext';
+      const hasNodes = (navStack[0]?.nodes.length ?? 0) > 0;
+      if (hasNodes) {
+        window.electronAPI.openTextInNewWindow(result.content, result.filePath, result.fileName, language);
+      } else {
+        await window.electronAPI.loadTextLocally(result.filePath);
+        setFileName(result.fileName);
+        setIsDirty(false);
+        setTextFileMode({ language });
+        setDslText(result.content);
+        setMode('code');
+      }
+    }
+  }, [navStack]);
+
+  const handleFileSave = React.useCallback(async () => {
+    if (!window.electronAPI) return;
+    const content = textFileMode ? dslText : getSerializedState();
+    const result = await window.electronAPI.saveFile(content);
+    if (result.success) { setFileName(result.fileName); setIsDirty(false); refreshRecentFiles(); }
+  }, [textFileMode, dslText, getSerializedState, refreshRecentFiles]);
+
+  const handleFileSaveAs = React.useCallback(async () => {
+    if (!window.electronAPI) return;
+    if (textFileMode) {
+      const result = await window.electronAPI.saveTextAs(dslText);
+      if (result.success) { setFileName(result.fileName); setIsDirty(false); refreshRecentFiles(); }
+    } else {
+      const result = await window.electronAPI.saveFileAs(getSerializedState());
+      if (result.success) { setFileName(result.fileName); setIsDirty(false); refreshRecentFiles(); }
+    }
+  }, [textFileMode, dslText, getSerializedState, refreshRecentFiles]);
+
+  const handleMenuAction = React.useCallback((action) => {
+    switch (action) {
+      case 'file:new':    handleFileNew();    break;
+      case 'file:open':   handleFileOpen();   break;
+      case 'file:save':   handleFileSave();   break;
+      case 'file:saveAs': handleFileSaveAs(); break;
+      case 'app:close':        window.electronAPI?.close(); break;
+      case 'app:newWindow':    window.electronAPI?.newWindow(); break;
+      case 'help:whatsnew':   window.electronAPI?.openWhatsNew(); break;
+      case 'app:about':        setShowAbout(true); break;
+      case 'app:preferences':  setPrefsDraft({ ...prefs }); setShowPrefs(true); break;
+      case 'help:quickstart':  handleQuickStart(); break;
+    }
+  }, [handleFileNew, handleFileOpen, handleFileSave, handleFileSaveAs, handleQuickStart, prefs]);
+
+  const handleSavePrefs = React.useCallback(async () => {
+    setPrefs(prefsDraft);
+    setPrefsDraft(null);
+    setShowPrefs(false);
+    await window.electronAPI?.savePreferences(prefsDraft);
+  }, [prefsDraft]);
+
+  const handleCancelPrefs = React.useCallback(() => {
+    setPrefsDraft(null);
+    setShowPrefs(false);
+  }, []);
+
+  const handleSaveAsTemplate = React.useCallback((node) => {
+    setPendingTemplateNode(node);
+    setTemplateDraftName(node.data.label ?? '');
+  }, []);
+
+  const handleConfirmSaveTemplate = React.useCallback(async () => {
+    if (!pendingTemplateNode) return;
+    const template = {
+      id:        crypto.randomUUID(),
+      name:      templateDraftName.trim() || pendingTemplateNode.data.label,
+      createdAt: new Date().toISOString(),
+      node:      serializeNodeForTemplate(pendingTemplateNode),
+    };
+    await window.electronAPI?.saveTemplate(template);
+    setTemplates((prev) => [...prev, template]);
+    setPendingTemplateNode(null);
+    setTemplateDraftName('');
+  }, [pendingTemplateNode, templateDraftName]);
+
+  const handleDeleteTemplate = React.useCallback(async (templateId) => {
+    await window.electronAPI?.deleteTemplate(templateId);
+    setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+  }, []);
+
+  const handleUseTemplate = React.useCallback((template) => {
+    if (mode !== 'graph') return;
+    canvasRef.current?.addFromTemplate(template.node);
+    setIsDirty(true);
+  }, [mode]);
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────────────────
+
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (!e.ctrlKey) return;
+      if (e.key === 's' && e.shiftKey) { e.preventDefault(); handleFileSaveAs(); }
+      else if (e.key === 's')          { e.preventDefault(); handleFileSave(); }
+      else if (e.key === 'o')          { e.preventDefault(); handleFileOpen(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleFileSave, handleFileSaveAs, handleFileOpen]);
+
+  // ────────────────────────────────────────────────────────────────────────────
 
   const handleCommandSubmit = React.useCallback(() => {
     const trimmed = command.trim();
     if (!trimmed) return;
-    const data = parseCommand(trimmed);
-    if (data) canvasRef.current?.addNode(data);
+    const cmd = parseCommand(trimmed);
+    if (cmd) {
+      if (cmd.command === 'showHelp') {
+        setShowHelp(true);
+      } else if (cmd.command === 'graph.zoomall') {
+        canvasRef.current?.fitView();
+      } else if (cmd.command === 'saveTemplate') {
+        const live = canvasRef.current?.getState();
+        const node = live?.nodes.find((n) => n.type === 'flowNode' && n.data?.label === cmd.name);
+        if (node) handleSaveAsTemplate(node);
+      } else if (cmd.command === 'addNode') {
+        canvasRef.current?.addNode({ label: cmd.label, nodeType: cmd.nodeType, icon: cmd.icon, pinsIn: cmd.pinsIn, pinsOut: cmd.pinsOut });
+      } else {
+        canvasRef.current?.executeCommand(cmd);
+      }
+    }
     setCommand('');
   }, [command]);
 
@@ -133,16 +640,18 @@ export default function App() {
       const parentIdx = prev.length - 2;
       const enteredId = prev[prev.length - 1].levelId;
 
-      const persistNodes = innerNodes.filter((n) => !n.id.startsWith('__gateway_'));
+      const persistNodes  = innerNodes.filter((n) => !n.id.startsWith('__gateway_'));
+      const regularNodes  = persistNodes.filter((n) => n.type === 'flowNode');
+      const propertyNodes = persistNodes.filter((n) => n.type === 'propertyNode');
 
       const updatedParent = {
         ...prev[parentIdx],
         nodes: prev[parentIdx].nodes.map((n) => {
           if (n.id !== enteredId) return n;
 
-          let data = { ...n.data, innerNodes: persistNodes, innerEdges };
+          let data = { ...n.data, innerNodes: persistNodes, innerEdges, hasProperties: propertyNodes.length > 0 };
 
-          if (persistNodes.length > 0 && n.data.nodeType !== 'group') {
+          if (regularNodes.length > 0 && n.data.nodeType !== 'group') {
             data = {
               ...data,
               prevNodeType: n.data.nodeType,
@@ -150,7 +659,7 @@ export default function App() {
               nodeType:     'group',
               icon:         NODE_ICONS.group,
             };
-          } else if (persistNodes.length === 0 && n.data.nodeType === 'group') {
+          } else if (regularNodes.length === 0 && n.data.nodeType === 'group') {
             data = {
               ...data,
               nodeType:     n.data.prevNodeType || 'action',
@@ -167,18 +676,35 @@ export default function App() {
     });
   }, []);
 
+  const livePrefs  = prefsDraft ?? prefs;
+  const liveTheme  = THEMES[livePrefs.theme] ?? THEMES['FlowScript (Default)'];
+  const cssVars = {
+    '--node-body-bg':       liveTheme.nodeBodyBg,
+    '--node-border-color':  liveTheme.nodeBorder,
+    '--node-header-bg':     liveTheme.nodeHeaderBg,
+    '--node-handle-bg':     liveTheme.nodeHandleBg,
+    '--node-menu-bg':       liveTheme.nodeMenuBg,
+    '--node-text-color':    livePrefs.nodeTextColor,
+    '--edge-stroke-width':  livePrefs.edgeThickness,
+  };
+
   return (
-    <div className="app-shell">
-      {/* File menu bar */}
-      <div className="file-menu-bar">
-        <button className="file-menu-btn">File</button>
-      </div>
+    <div className="app-shell" style={cssVars}>
+      <TitleBar
+        onAction={handleMenuAction}
+        fileName={fileName}
+        isDirty={isDirty}
+        recentFiles={recentFiles}
+        onOpenRecent={handleOpenRecent}
+        onClearRecent={handleClearRecent}
+      />
 
       {/* FlowBar */}
       <div className="flowbar">
         <button
-          className={`flowbar-tab${mode === 'graph' ? ' flowbar-tab--active' : ''}`}
+          className={`flowbar-tab${mode === 'graph' ? ' flowbar-tab--active' : ''}${textFileMode ? ' flowbar-tab--disabled' : ''}`}
           onClick={() => handleModeChange('graph')}
+          title={textFileMode ? 'Close the text file to use Graph mode' : undefined}
         >
           GRAPH
         </button>
@@ -188,33 +714,215 @@ export default function App() {
         >
           CODE
         </button>
-        <input
-          className="flowbar-input"
-          placeholder="Type a flow command..."
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleCommandSubmit(); }}
-        />
-        <button className="flowbar-submit" onClick={handleCommandSubmit}>&#9658;</button>
+        <button
+          className={`flowbar-tab${showTemplates ? ' flowbar-tab--active' : ''}${mode !== 'graph' ? ' flowbar-tab--disabled' : ''}`}
+          onClick={() => { if (mode === 'graph') setShowTemplates((v) => !v); }}
+          title={mode !== 'graph' ? 'Switch to Graph mode to use templates' : undefined}
+        >
+          Templates
+        </button>
+        <div className={`flowbar-command${mode === 'code' ? ' flowbar-command--hidden' : ''}`}>
+          <input
+            className="flowbar-input"
+            placeholder="Type a flow command..."
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCommandSubmit(); }}
+          />
+          <button className="flowbar-submit" onClick={handleCommandSubmit}>&#9658;</button>
+        </div>
       </div>
 
       {/* Content */}
       <div className="app-content">
         {mode === 'graph' && (
+          <img src={flowscriptLogo} className="canvas-watermark" alt="" />
+        )}
+        {mode === 'graph' && (
           <ReactFlowProvider>
             <FlowCanvas
               ref={canvasRef}
-              key={currentLevel.levelId ?? 'root'}
+              key={`${currentLevel.levelId ?? 'root'}-${loadKey}`}
               initialNodes={currentLevel.nodes}
               initialEdges={currentLevel.edges}
               isNested={navStack.length > 1}
               onEnterNode={handleEnterNode}
               onExitLevel={handleExitLevel}
+              onDirty={() => setIsDirty(true)}
+              onSaveAsTemplate={handleSaveAsTemplate}
             />
           </ReactFlowProvider>
         )}
-        {mode === 'code' && <CodeEditor value={dslText} onChange={setDslText} />}
+        {mode === 'code' && (
+          <CodeEditor
+            value={dslText}
+            onChange={(val) => { setDslText(val); if (textFileMode) setIsDirty(true); }}
+            language={textFileMode?.language}
+          />
+        )}
       </div>
+
+      {/* Templates panel */}
+      {showTemplates && mode === 'graph' && (
+        <div className="templates-panel">
+          <div className="templates-panel-header">
+            <span className="templates-panel-title">Templates</span>
+            <button className="templates-panel-close" onClick={() => setShowTemplates(false)}>×</button>
+          </div>
+          {templates.length === 0 ? (
+            <div className="templates-empty">
+              No templates yet.<br />Right-click a node and choose<br />"Save as Template…"
+            </div>
+          ) : (
+            <div className="templates-list">
+              {templates.map((t) => {
+                const innerCount = t.node?.data?.innerNodes?.filter(n => n.type === 'flowNode').length ?? 0;
+                const nodeType   = t.node?.data?.nodeType ?? 'action';
+                return (
+                  <div key={t.id} className="template-card">
+                    <div className="template-card-info">
+                      <span className="template-card-name">{t.name}</span>
+                      <span className="template-card-meta">
+                        <span className="template-card-type">{nodeType}</span>
+                        {innerCount > 0 && <span className="template-card-inner">{innerCount} inner</span>}
+                      </span>
+                    </div>
+                    <div className="template-card-actions">
+                      <button className="template-btn template-btn--use" onClick={() => handleUseTemplate(t)}>Use</button>
+                      <button className="template-btn template-btn--delete" onClick={() => handleDeleteTemplate(t.id)}>🗑</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Save-as-template modal */}
+      {pendingTemplateNode && (
+        <div className="modal-overlay" onClick={() => { setPendingTemplateNode(null); setTemplateDraftName(''); }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Save as Template</span>
+              <button className="modal-close" onClick={() => { setPendingTemplateNode(null); setTemplateDraftName(''); }}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="modal-field">
+                <label className="modal-label">Template Name</label>
+                <input
+                  className="modal-input"
+                  value={templateDraftName}
+                  onChange={(e) => setTemplateDraftName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmSaveTemplate(); }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn" onClick={() => { setPendingTemplateNode(null); setTemplateDraftName(''); }}>Cancel</button>
+              <button className="modal-btn modal-btn--primary" onClick={handleConfirmSaveTemplate}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAbout && (
+        <div className="modal-overlay" onClick={() => setShowAbout(false)}>
+          <div className="about-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close about-modal-close" onClick={() => setShowAbout(false)}>×</button>
+            <div className="about-content">
+              <img src={flowscriptLogo} className="about-logo" alt="FlowScript" />
+              <div className="about-info">
+                <div className="about-title">FlowScript {appVersion ? `v${appVersion}` : ''}</div>
+                <div className="about-line">Created by placeholder</div>
+                <div className="about-line">Stack placeholder</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPrefs && prefsDraft && (
+        <div className="modal-overlay" onClick={handleCancelPrefs}>
+          <div className="prefs-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Preferences</span>
+              <button className="modal-close" onClick={handleCancelPrefs}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="modal-field">
+                <label className="modal-label">Theme</label>
+                <select
+                  className="modal-select"
+                  value={prefsDraft.theme}
+                  onChange={(e) => setPrefsDraft((d) => ({ ...d, theme: e.target.value }))}
+                >
+                  {Object.keys(THEMES).map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="modal-field">
+                <label className="modal-label">Node Text Color</label>
+                <div className="prefs-color-row">
+                  <input
+                    type="color"
+                    value={prefsDraft.nodeTextColor}
+                    onChange={(e) => setPrefsDraft((d) => ({ ...d, nodeTextColor: e.target.value }))}
+                    className="prefs-color-input"
+                  />
+                  <span className="prefs-color-value">{prefsDraft.nodeTextColor}</span>
+                </div>
+              </div>
+              <div className="modal-field">
+                <label className="modal-label">Edge Thickness</label>
+                <div className="prefs-slider-row">
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="6"
+                    step="0.5"
+                    value={prefsDraft.edgeThickness}
+                    onChange={(e) => setPrefsDraft((d) => ({ ...d, edgeThickness: parseFloat(e.target.value) }))}
+                    className="prefs-slider"
+                  />
+                  <span className="prefs-slider-value">{prefsDraft.edgeThickness}px</span>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn" onClick={handleCancelPrefs}>Cancel</button>
+              <button className="modal-btn modal-btn--primary" onClick={handleSavePrefs}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHelp && (
+        <div className="help-overlay" onClick={() => setShowHelp(false)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="help-header">
+              <span>FlowBar Commands</span>
+              <button className="help-close" onClick={() => setShowHelp(false)}>×</button>
+            </div>
+            <table className="help-table">
+              <tbody>
+                <tr><td><code>name</code></td><td>Create a node (1 in, 1 out)</td></tr>
+                <tr><td><code>addNode(name)</code></td><td>Create an action node</td></tr>
+                <tr><td><code>deleteNode(name)</code></td><td>Delete a node by name</td></tr>
+                <tr><td><code>addPins(name) : in N, out N</code></td><td>Add N in and N out pins to a node</td></tr>
+                <tr><td><code>addProperty(name)</code></td><td>Add a property inside a node</td></tr>
+                <tr><td><code>changeType(name) : type</code></td><td>Change type — action / condition / data / event</td></tr>
+                <tr><td><code>renameNode(name) : new name</code></td><td>Rename a node</td></tr>
+                <tr><td><code>graph.zoomall</code></td><td>Zoom to fit all nodes in view</td></tr>
+                <tr><td><code>saveTemplate(name)</code></td><td>Save node by name as a template</td></tr>
+                <tr><td><code>showHelp</code></td><td>Show this window</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

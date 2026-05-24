@@ -6,12 +6,12 @@ function beforeMount(monaco) {
   register(monaco);
 }
 
-export default function CodeEditor({ value, onChange }) {
+export default function CodeEditor({ value, onChange, language }) {
   return (
     <Editor
       height="100%"
-      language={LANGUAGE_ID}
-      theme="flowscript-dark"
+      language={language ?? LANGUAGE_ID}
+      theme={language ? 'vs-dark' : 'flowscript-dark'}
       value={value}
       onChange={(val) => onChange(val ?? '')}
       beforeMount={beforeMount}

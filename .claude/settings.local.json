@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\electron\")",
+      "Bash(npm run *)",
+      "Bash(del \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\electron\\\\main.cjs\")",
+      "PowerShell($proc = Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | Select-Object -First 1; if \\($proc\\) { Stop-Process -Id $proc.OwningProcess -Force -ErrorAction SilentlyContinue; \"Killed PID $\\($proc.OwningProcess\\)\" } else { \"Port 5173 is free\" })",
+      "Bash(npm install *)",
+      "PowerShell(Rename-Item \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\vite.config.js\" \"vite.config.mjs\")",
+      "PowerShell(Rename-Item \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\vite.electron.config.js\" \"vite.electron.config.mjs\")",
+      "PowerShell(Rename-Item \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\eslint.config.js\" \"eslint.config.mjs\")",
+      "Bash(npx electron *)",
+      "Bash(timeout 3)",
+      "PowerShell(cd \"d:\\\\FlowScript_Windows\\\\flowscript-react\"; $proc = Start-Process -FilePath \"npx\" -ArgumentList \"electron\", \"test-main.cjs\" -NoNewWindow -PassThru; Start-Sleep -Seconds 3; $proc.Kill\\(\\); if \\(Test-Path \"test-debug.txt\"\\) { Get-Content \"test-debug.txt\" } else { \"test-debug.txt not created\" })",
+      "PowerShell(cd \"d:\\\\FlowScript_Windows\\\\flowscript-react\"; $proc = Start-Process -FilePath \".\\\\node_modules\\\\electron\\\\dist\\\\electron.exe\" -ArgumentList \"test-main.cjs\" -PassThru -WindowStyle Hidden; Start-Sleep -Seconds 3; if \\(-not $proc.HasExited\\) { $proc.Kill\\(\\) }; Start-Sleep -Milliseconds 500; if \\(Test-Path \"test-debug.txt\"\\) { Get-Content \"test-debug.txt\" } else { \"not created\" })",
+      "PowerShell(cd \"d:\\\\FlowScript_Windows\\\\flowscript-react\"; $proc = Start-Process -FilePath \".\\\\node_modules\\\\electron\\\\dist\\\\electron.exe\" -ArgumentList \"test-main2.cjs\" -PassThru -WindowStyle Hidden; Start-Sleep -Seconds 4; if \\(-not $proc.HasExited\\) { $proc.Kill\\(\\) }; Start-Sleep -Milliseconds 500; if \\(Test-Path \"test-debug2.txt\"\\) { Get-Content \"test-debug2.txt\" } else { \"test-debug2.txt not created\" })",
+      "PowerShell(\\(Get-Item \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\node_modules\\\\electron\\\\dist\\\\electron.exe\"\\).Length / 1MB)",
+      "PowerShell(cd \"d:\\\\FlowScript_Windows\\\\flowscript-react\"; $proc = Start-Process -FilePath \".\\\\node_modules\\\\electron\\\\dist\\\\electron.exe\" -ArgumentList \"test-raw.js\" -PassThru -WindowStyle Hidden; Start-Sleep -Seconds 4; if \\(-not $proc.HasExited\\) { $proc.Kill\\(\\) }; Start-Sleep -Milliseconds 500; if \\(Test-Path \"test-raw-out.txt\"\\) { Get-Content \"test-raw-out.txt\" } else { \"not created\" })",
+      "PowerShell(Get-ChildItem \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\node_modules\\\\electron\\\\dist\\\\resources\\\\\" | Select-Object Name, @{N=\"SizeMB\";E={[math]::Round\\($_.Length/1MB,2\\)}})",
+      "PowerShell(Get-ChildItem \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\node_modules\\\\electron\\\\dist\\\\\" -Recurse | Select-Object FullName, @{N=\"SizeMB\";E={[math]::Round\\($_.Length/1MB,2\\)}} | Sort-Object SizeMB -Descending | Select-Object -First 20)",
+      "PowerShell($env:ELECTRON_RUN_AS_NODE; [System.Environment]::GetEnvironmentVariable\\(\"ELECTRON_RUN_AS_NODE\", \"Machine\"\\); [System.Environment]::GetEnvironmentVariable\\(\"ELECTRON_RUN_AS_NODE\", \"User\"\\))",
+      "PowerShell(cd \"d:\\\\FlowScript_Windows\\\\flowscript-react\"; $env:ELECTRON_RUN_AS_NODE = ''; $proc = Start-Process -FilePath \".\\\\node_modules\\\\electron\\\\dist\\\\electron.exe\" -ArgumentList \"test-raw.js\" -PassThru -WindowStyle Hidden; Start-Sleep -Seconds 4; if \\(-not $proc.HasExited\\) { $proc.Kill\\(\\) }; Start-Sleep -Milliseconds 500; if \\(Test-Path \"test-raw-out.txt\"\\) { Get-Content \"test-raw-out.txt\" } else { \"not created\" })",
+      "PowerShell(cd \"d:\\\\FlowScript_Windows\\\\flowscript-react\"; $env:ELECTRON_RUN_AS_NODE = ''; Start-Process -FilePath \"npm\" -ArgumentList \"run\", \"electron:dev\" -NoNewWindow -PassThru; Start-Sleep -Seconds 8; Write-Host \"Launched\")",
+      "Bash(ELECTRON_RUN_AS_NODE='' npm run electron:dev)",
+      "Bash(jobs)",
+      "Read(//tmp/**)",
+      "PowerShell(\\(Get-Item \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\public\\\\tutorial.flowscript\"\\).Length)",
+      "PowerShell(cd d:\\\\FlowScript_Windows\\\\flowscript-react; npm run electron:dev 2>&1 | Tee-Object -FilePath \"$env:TEMP\\\\fs_debug.txt\")",
+      "PowerShell(Copy-Item \"d:\\\\FlowScript_Windows\\\\FlowScript_Logo.png\" \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\public\\\\FlowScript_Logo.png\")",
+      "PowerShell(Copy-Item \"d:\\\\FlowScript_Windows\\\\FlowScript_Logo.png\" \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\public\\\\FlowScript_Logo.png\" -Force)",
+      "PowerShell(Copy-Item \"d:\\\\FlowScript_Windows\\\\FlowScript_Logo.png\" \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\src\\\\FlowScript_Logo.png\" -Force)",
+      "PowerShell(Copy-Item \"d:\\\\FlowScript_Windows\\\\whats_new.md\" \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\public\\\\whats_new.md\" -Force)"
+    ],
+    "additionalDirectories": [
+      "d:\\FlowScript_Windows\\flowscript-react"
+    ]
+  }
+}

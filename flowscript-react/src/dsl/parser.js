@@ -14,6 +14,26 @@ function parsePins(str) {
   });
 }
 
+function buildPropData(typeStr, attrs) {
+  const type = typeStr[0].toUpperCase() + typeStr.slice(1).toLowerCase();
+  const name = attrs.name || '';
+  if (type === 'Checkbox') {
+    return { propertyType: 'Checkbox', name, checked: attrs.checked === 'true' };
+  }
+  if (type === 'Slider') {
+    return {
+      propertyType: 'Slider', name,
+      min:         parseInt(attrs.min   ?? '0',   10) || 0,
+      max:         parseInt(attrs.max   ?? '100', 10) || 100,
+      sliderValue: parseInt(attrs.value ?? '0',   10) || 0,
+    };
+  }
+  if (type === 'Dropdown') {
+    return { propertyType: 'Dropdown', name, dropdownOptions: attrs.options || '', selectedOption: attrs.value || '' };
+  }
+  return { propertyType: type, name };
+}
+
 function resolvePinIndex(ref, names = []) {
   const n = parseInt(ref, 10);
   if (!isNaN(n)) return n;
@@ -21,9 +41,12 @@ function resolvePinIndex(ref, names = []) {
   return i >= 0 ? i : 0;
 }
 
-function makeNode(label, nodeType, existingPos, existingId, autoY) {
+function makeNode(label, nodeType, existingPos, existingId, autoY, usedIds) {
+  let id = existingId[label];
+  if (!id || usedIds.has(id)) id = crypto.randomUUID();
+  usedIds.add(id);
   return {
-    id:       existingId[label] || crypto.randomUUID(),
+    id,
     type:     'flowNode',
     position: existingPos[label] || { x: 100, y: autoY },
     data: {
@@ -66,15 +89,32 @@ function parseEndpoint(str, nodes, role) {
 // ── Main parser ───────────────────────────────────────────────────────────────
 
 export function parse(text, existingNodes = []) {
-  // Build lookup maps from existing graph for position and ID preservation
+  // Build lookup maps from existing graph for position and ID preservation.
+  // For nodes with duplicate labels the serializer appends " 1", " 2", etc., so
+  // we pre-populate those numbered keys here using the same ordering logic.
   const existingPos = {};
   const existingId  = {};
+
+  const labelOccurrences = {};
   for (const n of existingNodes) {
-    if (n.type === 'flowNode' && n.data?.label) {
-      existingPos[n.data.label] = n.position;
-      existingId[n.data.label]  = n.id;
+    if (n.type !== 'flowNode' || !n.data?.label) continue;
+    const lbl = n.data.label;
+    if (!labelOccurrences[lbl]) labelOccurrences[lbl] = [];
+    labelOccurrences[lbl].push(n);
+  }
+  for (const [lbl, occurrences] of Object.entries(labelOccurrences)) {
+    if (occurrences.length === 1) {
+      existingPos[lbl] = occurrences[0].position;
+      existingId[lbl]  = occurrences[0].id;
+    } else {
+      occurrences.forEach((n, i) => {
+        existingPos[`${lbl} ${i + 1}`] = n.position;
+        existingId[`${lbl} ${i + 1}`]  = n.id;
+      });
     }
   }
+
+  const usedIds = new Set();
 
   const sections = new Map();               // flowId → { nodes[], edges[] }
   sections.set(null, { nodes: [], edges: [] });
@@ -107,7 +147,7 @@ export function parse(text, existingNodes = []) {
       const nm = content.match(/^node\s+("[^"]*"|\S+)\s*:\s*(\w+)$/);
       if (nm) {
         const label = unquote(nm[1]);
-        currentNode = makeNode(label, nm[2], existingPos, existingId, autoY);
+        currentNode = makeNode(label, nm[2], existingPos, existingId, autoY, usedIds);
         autoY += 150;
         section.nodes.push(currentNode);
         continue;
@@ -150,22 +190,52 @@ export function parse(text, existingNodes = []) {
         currentNode.data.pinsOut     = pins.length;
       } else if (bodyM) {
         currentNode._bodyRef = bodyM[1];
+      } else {
+        const propM = content.match(/^prop\s+(\w+)\s*(.*)/);
+        if (propM) {
+          const attrs = {};
+          const kvRe  = /(\w+):((?:"[^"]*"|\S+))/g;
+          let km;
+          while ((km = kvRe.exec(propM[2])) !== null) {
+            let val = km[2];
+            if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+            attrs[km[1]] = val;
+          }
+          if (!currentNode._propNodes) currentNode._propNodes = [];
+          currentNode._propNodes.push({
+            id:       crypto.randomUUID(),
+            type:     'propertyNode',
+            position: { x: 200, y: 20 + currentNode._propNodes.length * 140 },
+            data:     buildPropData(propM[1], attrs),
+          });
+        }
       }
     }
   }
 
-  // ── Link flow bodies to their group nodes ─────────────────────────────────
+  // ── Link flow bodies and properties to their nodes ────────────────────────
   for (const { nodes } of sections.values()) {
     for (const node of nodes) {
-      if (!node._bodyRef) continue;
-      const inner = sections.get(node._bodyRef);
-      if (inner) {
-        node.data.innerNodes = inner.nodes;
-        node.data.innerEdges = inner.edges;
-        node.data.nodeType   = 'group';
-        node.data.icon       = NODE_ICONS.group;
+      const propNodes = node._propNodes || [];
+      delete node._propNodes;
+
+      let bodyNodes = [], bodyEdges = [];
+      if (node._bodyRef) {
+        const inner = sections.get(node._bodyRef);
+        if (inner) {
+          bodyNodes = inner.nodes;
+          bodyEdges = inner.edges;
+          node.data.nodeType = 'group';
+          node.data.icon     = NODE_ICONS.group;
+        }
+        delete node._bodyRef;
       }
-      delete node._bodyRef;
+
+      if (propNodes.length > 0 || bodyNodes.length > 0) {
+        node.data.innerNodes    = [...propNodes, ...bodyNodes];
+        node.data.innerEdges    = bodyEdges;
+        node.data.hasProperties = propNodes.length > 0;
+      }
     }
   }
 

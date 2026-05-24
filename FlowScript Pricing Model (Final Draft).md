@@ -1,18 +1,20 @@
 # **FlowScript Pricing Model (Final Draft)**
 
-## **1. FlowScript Free**
+## **1. **FlowScript Free
 
-A fully usable trial tier for curious users.
+A fully usable trial tier designed to let people *experience* FlowScript without giving away the full product.
 
-- Full editor access with limitations
-- Limited node types
-- Limited projects
-- No DSL view
-- No custom nodes
-- No export formats
-- No cloud sync
-- No collaboration
-- No version history
+### **What Free Users Get**
+
+- **Full editor access (with limitations)**   They can open the editor, create nodes, connect flows, and explore the tool.
+- **Limited node types (future constraint; not enforced at 1.0)**   At launch, all built‑in nodes are available because the library is small. Later, when the library grows, Free can be capped to a subset.
+- **Limited projects →** ***No saving***   This is the strongest and cleanest limitation. Free users can experiment, but they can’t accumulate work. It creates a natural upgrade moment without crippling the experience.
+- **DSL View: Read‑Only**   Perfect. They can *see* the DSL, understand the value, but not edit or export it. This is a powerful upsell without blocking learning.
+- **No custom nodes**   Not part of 1.0 anyway, but keeping it listed future‑proofs the tier.
+- **No export formats**   They can’t turn their work into JSON, .flowfile, .frame, or text. Again, a natural upgrade moment.
+- **No cloud sync**
+- **No collaboration**
+- **No version history**  
 
 ------
 

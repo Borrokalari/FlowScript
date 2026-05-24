@@ -34,6 +34,9 @@ export function register(monaco) {
         // 'body' keyword
         [/\bbody\b/, { token: 'keyword.pin', next: '@bodyRef' }],
 
+        // 'prop' keyword → switch to propDecl to capture the property type
+        [/\bprop\b/, { token: 'keyword.pin', next: '@propDecl' }],
+
         // Arrow operator
         [/->/, 'operator'],
 
@@ -43,8 +46,8 @@ export function register(monaco) {
         // @flow-id reference
         [/@\w+/, 'flow-ref'],
 
-        // Node type names
-        [/\b(?:action|condition|data|event|group)\b/, 'type'],
+        // Node type names (including property types)
+        [/\b(?:action|condition|data|event|group|checkbox|slider|dropdown)\b/, 'type'],
 
         // Quoted label (e.g. "new node")
         [/"[^"]*"/, 'string'],
@@ -102,6 +105,13 @@ export function register(monaco) {
       bodyRef: [
         [/[ \t]+/, ''],
         [/@\w+/, { token: 'flow-ref', next: '@pop' }],
+        [/$/, { token: '', next: '@pop' }],
+      ],
+
+      // Property type after 'prop'
+      propDecl: [
+        [/[ \t]+/, ''],
+        [/\b(?:checkbox|slider|dropdown)\b/, { token: 'type', next: '@pop' }],
         [/$/, { token: '', next: '@pop' }],
       ],
     },

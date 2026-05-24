@@ -28,15 +28,42 @@ export const NODE_ICONS = {
   group:     group_icon,
 };
 
-export const rootNodes = [
-  {
-    id: '1',
-    type: 'flowNode',
-    position: { x: 250, y: 5 },
-    data: { label: 'getmilk', nodeType: 'action', icon: action_icon, pinsIn: 1, pinsOut: 1 },
-  },
-];
+// Tutorial content lives in public/tutorial.flowscript — loaded at runtime.
+export const rootNodes = [];
 export const rootEdges = [];
+
+// ─── Template instantiation ───────────────────────────────────────────────────
+
+function instantiateTemplateNode(templateNode) {
+  const idMap = {};
+
+  function remapNode(n) {
+    const newId = crypto.randomUUID();
+    idMap[n.id] = newId;
+
+    const data = { ...n.data };
+
+    if (n.type === 'flowNode') {
+      data.icon = NODE_ICONS[n.data.nodeType] ?? NODE_ICONS.action;
+      if (n.data.prevNodeType) data.prevIcon = NODE_ICONS[n.data.prevNodeType] ?? NODE_ICONS.action;
+
+      if (n.data.innerNodes) {
+        // Remap inner nodes first so idMap is populated before edges
+        data.innerNodes = n.data.innerNodes.map(remapNode);
+        data.innerEdges = (n.data.innerEdges ?? []).map((e) => ({
+          ...e,
+          id:     crypto.randomUUID(),
+          source: idMap[e.source] ?? e.source,
+          target: idMap[e.target] ?? e.target,
+        }));
+      }
+    }
+
+    return { ...n, id: newId, data };
+  }
+
+  return remapNode(templateNode);
+}
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -57,17 +84,23 @@ function pinPositions(count, totalHeight) {
   );
 }
 
-function findFreePosition(existingNodes, label, pinsIn, pinsOut, startX, startY) {
-  const newW = computeNodeWidth(label);
-  const newH = computeNodeHeight(pinsIn, pinsOut);
+function inferNodeType(pinsIn, pinsOut) {
+  if (pinsIn === 0 && pinsOut >= 1) return 'event';
+  if (pinsOut === 0 && pinsIn >= 1) return 'event';
+  if (pinsIn === 1 && pinsOut >= 2) return 'condition';
+  if (pinsOut === 1 && pinsIn >= 2) return 'condition';
+  return null;
+}
+
+function findFreePosition(existingNodes, newW, newH, startX, startY) {
   const gap = 20;
 
   const isBlocked = (cx, cy) =>
     existingNodes
-      .filter((n) => n.type === 'flowNode')
+      .filter((n) => n.type === 'flowNode' || n.type === 'propertyNode')
       .some((n) => {
-        const nW = computeNodeWidth(n.data?.label ?? '');
-        const nH = computeNodeHeight(n.data?.pinsIn ?? 1, n.data?.pinsOut ?? 1);
+        const nW = n.type === 'propertyNode' ? 215 : computeNodeWidth(n.data?.label ?? '');
+        const nH = n.type === 'propertyNode' ? 120 : computeNodeHeight(n.data?.pinsIn ?? 1, n.data?.pinsOut ?? 1);
         return (
           cx < n.position.x + nW + gap &&
           cx + newW + gap > n.position.x &&
@@ -92,7 +125,7 @@ function findFreePosition(existingNodes, label, pinsIn, pinsOut, startX, startY)
 
 // ─── FlowNode ────────────────────────────────────────────────────────────────
 
-function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode }) {
+function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate }) {
   const [menuOpen,   setMenuOpen]   = React.useState(false);
   const [editingPin, setEditingPin] = React.useState(null);
   const menuRef = React.useRef(null);
@@ -157,6 +190,13 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
                 Add Pins
               </button>
               <button
+                className="flow-node-dropdown-item"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => { onSaveAsTemplate(id); setMenuOpen(false); }}
+              >
+                Save as Template...
+              </button>
+              <button
                 className="flow-node-dropdown-item flow-node-dropdown-item--danger"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={() => onDeleteNode(id)}
@@ -170,6 +210,7 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
 
       <div className="flow-node-body">
         <div className="flow-node-icon" style={{ backgroundImage: `url(${data.icon})` }} />
+        {data.hasProperties && <div className="flow-node-property-dot" />}
       </div>
 
       {pinPositions(pinsIn, height).map((top, i) => {
@@ -258,6 +299,164 @@ function PinGatewayNode({ data }) {
   );
 }
 
+// ─── PropertyNode ────────────────────────────────────────────────────────────
+
+function PropertyNode({ id, data, onDeleteProperty, onChangePropertyType, onUpdatePropertyData }) {
+  const stop   = (e) => e.stopPropagation();
+  const update = (updates) => onUpdatePropertyData(id, updates);
+
+  const parsedOptions = (data.dropdownOptions || '')
+    .split(',').map(o => o.trim()).filter(Boolean);
+
+  const safeMin     = data.min ?? 0;
+  const safeMax     = Math.max(safeMin + 1, data.max ?? 100);
+  const sliderValue = Math.min(safeMax, Math.max(safeMin, data.sliderValue ?? safeMin));
+
+  return (
+    <div className="property-node">
+      <div className="property-node-header">
+        <span className="property-node-label">Property Type:</span>
+        <select
+          className="property-node-select"
+          value={data.propertyType}
+          onChange={(e) => onChangePropertyType(id, e.target.value)}
+          onMouseDown={stop}
+        >
+          <option value="Checkbox">Checkbox</option>
+          <option value="Slider">Slider</option>
+          <option value="Dropdown">Dropdown</option>
+        </select>
+        <button
+          className="property-node-trash"
+          onClick={() => onDeleteProperty(id)}
+          onMouseDown={stop}
+          onDoubleClick={stop}
+        >
+          🗑
+        </button>
+      </div>
+
+      <div className="property-node-body">
+        <div className="prop-row">
+          <span className="prop-label">Name:</span>
+          <input
+            className="prop-input"
+            type="text"
+            value={data.name || ''}
+            onChange={(e) => update({ name: e.target.value })}
+            onMouseDown={stop}
+          />
+        </div>
+
+        {data.propertyType === 'Checkbox' && (<>
+          <div className="prop-row">
+            <span className="prop-label">Checkbox:</span>
+            <input
+              type="checkbox"
+              className="prop-checkbox"
+              checked={!!data.checked}
+              onChange={(e) => update({ checked: e.target.checked })}
+              onMouseDown={stop}
+            />
+          </div>
+          <div className="prop-row">
+            <span className="prop-label">Value:</span>
+            <span className="prop-value-label">{data.checked ? 'yes' : 'no'}</span>
+          </div>
+        </>)}
+
+        {data.propertyType === 'Dropdown' && (<>
+          <div className="prop-row prop-row--stacked">
+            <span className="prop-label">Dropdown Options:</span>
+            <input
+              className="prop-input"
+              type="text"
+              value={data.dropdownOptions || ''}
+              placeholder="option1, option2, option3"
+              onChange={(e) => {
+                const dropdownOptions = e.target.value;
+                const opts = dropdownOptions.split(',').map(o => o.trim()).filter(Boolean);
+                update({
+                  dropdownOptions,
+                  selectedOption: opts.includes(data.selectedOption) ? data.selectedOption : (opts[0] || ''),
+                });
+              }}
+              onMouseDown={stop}
+            />
+          </div>
+          <div className="prop-row">
+            <span className="prop-label">Dropdown:</span>
+            <select
+              className="prop-input"
+              value={data.selectedOption || ''}
+              onChange={(e) => update({ selectedOption: e.target.value })}
+              onMouseDown={stop}
+              disabled={parsedOptions.length === 0}
+            >
+              {parsedOptions.length === 0
+                ? <option value="">—</option>
+                : parsedOptions.map(o => <option key={o} value={o}>{o}</option>)
+              }
+            </select>
+          </div>
+          <div className="prop-row">
+            <span className="prop-label">Value:</span>
+            <span className="prop-value-label">{data.selectedOption || '—'}</span>
+          </div>
+        </>)}
+
+        {data.propertyType === 'Slider' && (<>
+          <div className="prop-row prop-row--stacked">
+            <span className="prop-label">Slider Values:</span>
+            <div className="prop-minmax">
+              <span className="prop-sublabel">Min:</span>
+              <input
+                type="number"
+                className="prop-input prop-input--mini"
+                value={data.min ?? 0}
+                onChange={(e) => {
+                  const min = parseInt(e.target.value, 10) || 0;
+                  update({ min, sliderValue: Math.max(min, Math.min(safeMax, sliderValue)) });
+                }}
+                onMouseDown={stop}
+              />
+              <span className="prop-sublabel">Max:</span>
+              <input
+                type="number"
+                className="prop-input prop-input--mini"
+                value={data.max ?? 100}
+                onChange={(e) => {
+                  const max = parseInt(e.target.value, 10) || 0;
+                  update({ max, sliderValue: Math.min(max, Math.max(safeMin, sliderValue)) });
+                }}
+                onMouseDown={stop}
+              />
+            </div>
+          </div>
+          <div className="prop-row">
+            <span className="prop-label">Slider:</span>
+            <input
+              type="range"
+              className="prop-slider nodrag"
+              min={safeMin}
+              max={safeMax}
+              step={1}
+              value={sliderValue}
+              onChange={(e) => update({ sliderValue: parseInt(e.target.value, 10) })}
+              onMouseDown={stop}
+              onPointerDown={stop}
+            />
+          </div>
+          <div className="prop-row">
+            <span className="prop-label">Value:</span>
+            <span className="prop-value-label">{sliderValue}</span>
+          </div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
 // ─── EditModal ────────────────────────────────────────────────────────────────
 
 function EditModal({ node, onSave, onClose }) {
@@ -265,6 +464,12 @@ function EditModal({ node, onSave, onClose }) {
   const [nodeType, setNodeType] = React.useState(node.data.nodeType ?? 'action');
   const [pinsIn,   setPinsIn]   = React.useState(node.data.pinsIn  ?? 1);
   const [pinsOut,  setPinsOut]  = React.useState(node.data.pinsOut ?? 1);
+
+  React.useEffect(() => {
+    if (nodeType === 'group') return;
+    const inferred = inferNodeType(pinsIn, pinsOut);
+    if (inferred) setNodeType(inferred);
+  }, [pinsIn, pinsOut]);
 
   const handleSave = () => {
     onSave({
@@ -354,12 +559,12 @@ function EditModal({ node, onSave, onClose }) {
 // ─── FlowCanvas ───────────────────────────────────────────────────────────────
 
 const FlowCanvas = React.forwardRef(function FlowCanvas(
-  { initialNodes, initialEdges, isNested, onEnterNode, onExitLevel },
+  { initialNodes, initialEdges, isNested, onEnterNode, onExitLevel, onDirty, onSaveAsTemplate },
   ref
 ) {
   const [nodes, setNodes] = useNodesState(initialNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
   const [editingNode, setEditingNode] = React.useState(null);
 
   const nodesRef = React.useRef(nodes);
@@ -370,17 +575,96 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
   React.useImperativeHandle(ref, () => ({
     addNode: (data) => {
       const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-      const position = findFreePosition(nodesRef.current, data.label, data.pinsIn, data.pinsOut, center.x, center.y);
+      const position = findFreePosition(nodesRef.current, computeNodeWidth(data.label), computeNodeHeight(data.pinsIn, data.pinsOut), center.x, center.y);
+      const inferred = inferNodeType(data.pinsIn, data.pinsOut);
+      const nodeData = inferred ? { ...data, nodeType: inferred, icon: NODE_ICONS[inferred] } : data;
       setNodes((nds) => [
         ...nds,
-        { id: crypto.randomUUID(), type: 'flowNode', position, data },
+        { id: crypto.randomUUID(), type: 'flowNode', position, data: nodeData },
       ]);
     },
     getState: () => ({
       nodes: nodesRef.current,
       edges: edgesRef.current,
     }),
-  }), [screenToFlowPosition, setNodes]);
+    fitView: () => fitView({ padding: 0.15, duration: 300 }),
+    addFromTemplate: (templateNode) => {
+      const node     = instantiateTemplateNode(templateNode);
+      const center   = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      const w        = computeNodeWidth(node.data.label);
+      const h        = computeNodeHeight(node.data.pinsIn ?? 1, node.data.pinsOut ?? 1);
+      node.position  = findFreePosition(nodesRef.current, w, h, center.x, center.y);
+      setNodes((nds) => [...nds, node]);
+    },
+    executeCommand: (cmd) => {
+      const byName = (name) =>
+        nodesRef.current.find(n => n.type === 'flowNode' && n.data?.label === name);
+
+      if (cmd.command === 'deleteNode') {
+        const t = byName(cmd.name);
+        if (!t) return;
+        setNodes(nds => nds.filter(n => n.id !== t.id));
+        setEdges(eds => eds.filter(e => e.source !== t.id && e.target !== t.id));
+      }
+
+      else if (cmd.command === 'addPins') {
+        const t = byName(cmd.name);
+        if (!t) return;
+        setNodes(nds => nds.map(n => {
+          if (n.id !== t.id) return n;
+          const newIn  = (n.data.pinsIn  ?? 0) + cmd.pinsIn;
+          const newOut = (n.data.pinsOut ?? 0) + cmd.pinsOut;
+          const inferred = n.data.nodeType !== 'group' ? inferNodeType(newIn, newOut) : null;
+          return {
+            ...n, data: {
+              ...n.data,
+              pinsIn:   newIn,
+              pinsOut:  newOut,
+              nodeType: inferred ?? n.data.nodeType,
+              icon:     inferred ? NODE_ICONS[inferred] : n.data.icon,
+            },
+          };
+        }));
+      }
+
+      else if (cmd.command === 'addProperty') {
+        const t = byName(cmd.name);
+        if (!t) return;
+        const existingProps = (t.data.innerNodes ?? []).filter(n => n.type === 'propertyNode');
+        const newProp = {
+          id:       crypto.randomUUID(),
+          type:     'propertyNode',
+          position: { x: 200, y: 20 + existingProps.length * 140 },
+          data:     { propertyType: 'Checkbox', name: '', checked: false },
+        };
+        setNodes(nds => nds.map(n => n.id !== t.id ? n : {
+          ...n, data: {
+            ...n.data,
+            innerNodes:    [...(n.data.innerNodes ?? []), newProp],
+            hasProperties: true,
+          },
+        }));
+      }
+
+      else if (cmd.command === 'changeType') {
+        const VALID = ['action', 'condition', 'data', 'event'];
+        if (!VALID.includes(cmd.nodeType)) return;
+        const t = byName(cmd.name);
+        if (!t || t.data.nodeType === 'group') return;
+        setNodes(nds => nds.map(n => n.id !== t.id ? n : {
+          ...n, data: { ...n.data, nodeType: cmd.nodeType, icon: NODE_ICONS[cmd.nodeType] },
+        }));
+      }
+
+      else if (cmd.command === 'renameNode') {
+        const t = byName(cmd.name);
+        if (!t) return;
+        setNodes(nds => nds.map(n => n.id !== t.id ? n : {
+          ...n, data: { ...n.data, label: cmd.newName },
+        }));
+      }
+    },
+  }), [screenToFlowPosition, fitView, setNodes, setEdges]);
 
   const onDeleteNode = React.useCallback((nodeId) => {
     setNodes((nds) => nds.filter((n) => n.id !== nodeId));
@@ -391,11 +675,21 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
   }, []);
 
   const onAddPins = React.useCallback((nodeId) => {
-    setNodes((nds) => nds.map((n) =>
-      n.id === nodeId
-        ? { ...n, data: { ...n.data, pinsIn: (n.data.pinsIn ?? 1) + 1, pinsOut: (n.data.pinsOut ?? 1) + 1 } }
-        : n
-    ));
+    setNodes((nds) => nds.map((n) => {
+      if (n.id !== nodeId) return n;
+      const newIn  = (n.data.pinsIn  ?? 1) + 1;
+      const newOut = (n.data.pinsOut ?? 1) + 1;
+      const inferred = n.data.nodeType !== 'group' ? inferNodeType(newIn, newOut) : null;
+      return {
+        ...n, data: {
+          ...n.data,
+          pinsIn:   newIn,
+          pinsOut:  newOut,
+          nodeType: inferred ?? n.data.nodeType,
+          icon:     inferred ? NODE_ICONS[inferred] : n.data.icon,
+        },
+      };
+    }));
   }, [setNodes]);
 
   const onRenamePinName = React.useCallback((nodeId, side, index, name) => {
@@ -412,6 +706,26 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     onEnterNode(nodeId, nodesRef.current, edgesRef.current);
   }, [onEnterNode]);
 
+  const onChangePropertyType = React.useCallback((nodeId, propertyType) => {
+    setNodes((nds) => nds.map((n) => {
+      if (n.id !== nodeId) return n;
+      const base = { propertyType, name: n.data.name || '' };
+      if (propertyType === 'Checkbox')
+        return { ...n, data: { ...base, checked: false } };
+      if (propertyType === 'Dropdown')
+        return { ...n, data: { ...base, dropdownOptions: '', selectedOption: '' } };
+      if (propertyType === 'Slider')
+        return { ...n, data: { ...base, min: 0, max: 100, sliderValue: 0 } };
+      return { ...n, data: { ...n.data, propertyType } };
+    }));
+  }, [setNodes]);
+
+  const onUpdatePropertyData = React.useCallback((nodeId, updates) => {
+    setNodes((nds) => nds.map((n) =>
+      n.id === nodeId ? { ...n, data: { ...n.data, ...updates } } : n
+    ));
+  }, [setNodes]);
+
   const nodeTypes = React.useMemo(() => ({
     flowNode: (props) => (
       <FlowNode
@@ -421,10 +735,22 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         onAddPins={onAddPins}
         onRenamePinName={onRenamePinName}
         onEnterNode={handleEnterNode}
+        onSaveAsTemplate={(nodeId) => {
+          const node = nodesRef.current.find((n) => n.id === nodeId);
+          if (node) onSaveAsTemplate?.(node);
+        }}
       />
     ),
     pinGateway: PinGatewayNode,
-  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode]);
+    propertyNode: (props) => (
+      <PropertyNode
+        {...props}
+        onDeleteProperty={onDeleteNode}
+        onChangePropertyType={onChangePropertyType}
+        onUpdatePropertyData={onUpdatePropertyData}
+      />
+    ),
+  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode, onChangePropertyType, onUpdatePropertyData]);
 
   const onSaveEdit = (updatedNode) => {
     const old        = nodesRef.current.find((n) => n.id === updatedNode.id);
@@ -465,7 +791,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     const label = 'new node';
     const pinsIn = 1, pinsOut = 1;
     const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-    const position = findFreePosition(nodesRef.current, label, pinsIn, pinsOut, center.x, center.y);
+    const position = findFreePosition(nodesRef.current, computeNodeWidth(label), computeNodeHeight(pinsIn, pinsOut), center.x, center.y);
     setNodes((nds) => [
       ...nds,
       {
@@ -474,6 +800,15 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         position,
         data: { label, nodeType: 'action', icon: action_icon, pinsIn, pinsOut },
       },
+    ]);
+  };
+
+  const addProperty = () => {
+    const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    const position = findFreePosition(nodesRef.current, 215, 120, center.x, center.y);
+    setNodes((nds) => [
+      ...nds,
+      { id: crypto.randomUUID(), type: 'propertyNode', position, data: { propertyType: 'Checkbox', name: '', checked: false } },
     ]);
   };
 
@@ -487,12 +822,21 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setEdges]);
 
-  const onNodesChangeWrapped = (changes) =>
+  const DIRTY_NODE_TYPES = new Set(['add', 'remove', 'reset', 'position']);
+  const DIRTY_EDGE_TYPES = new Set(['add', 'remove', 'reset']);
+
+  const onNodesChangeWrapped = (changes) => {
+    if (changes.some((c) => DIRTY_NODE_TYPES.has(c.type))) onDirty?.();
     setNodes((nds) => applyNodeChanges(changes, nds));
-  const onEdgesChangeWrapped = (changes) =>
+  };
+  const onEdgesChangeWrapped = (changes) => {
+    if (changes.some((c) => DIRTY_EDGE_TYPES.has(c.type))) onDirty?.();
     setEdges((eds) => applyEdgeChanges(changes, eds));
-  const onConnect = (connection) =>
+  };
+  const onConnect = (connection) => {
+    onDirty?.();
     setEdges((eds) => addEdge(connection, eds));
+  };
 
   return (
     <>
@@ -513,6 +857,9 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         <Panel position="top-left">
           <div className="toolbar">
             <button className="toolbar-btn" onClick={addNode}>+ Node</button>
+            {isNested && (
+              <button className="toolbar-btn toolbar-btn--property" onClick={addProperty}>+ Property</button>
+            )}
             {isNested && (
               <button
                 className="toolbar-btn toolbar-btn--up"

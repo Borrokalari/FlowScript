@@ -1,13 +1,33 @@
 {
   "name": "flowscript-react",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "version": "0.1.0",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "electron:dev": "vite --config vite.electron.config.mjs",
     "build": "vite build",
+    "electron:build": "vite build --config vite.electron.config.mjs && electron-builder",
     "lint": "eslint .",
     "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.flowscript.app",
+    "productName": "FlowScript",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "extends": null,
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -22,10 +42,15 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "electron": "^32.3.3",
+    "electron-builder": "^26.8.1",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vite-plugin-electron": "^0.29.1",
+    "wait-on": "^9.0.10"
   }
 }

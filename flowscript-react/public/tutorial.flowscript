@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "welcome",
+      "type": "flowNode",
+      "position": { "x": 65, "y": 200 },
+      "data": { "label": "Welcome!", "nodeType": "event", "pinsIn": 0, "pinsOut": 1 }
+    },
+    {
+      "id": "add-nodes",
+      "type": "flowNode",
+      "position": { "x": 130, "y": 30 },
+      "data": { "label": "<< Add more nodes here", "nodeType": "action", "pinsIn": 0, "pinsOut": 0 }
+    },
+    {
+      "id": "experiment",
+      "type": "flowNode",
+      "position": { "x": 460, "y": 30 },
+      "data": { "label": "^ Experiment with the FlowBar, type showHelp", "nodeType": "action", "pinsIn": 0, "pinsOut": 0 }
+    },
+    {
+      "id": "edit-nodes",
+      "type": "flowNode",
+      "position": { "x": 215, "y": 360 },
+      "data": { "label": "Edit nodes with this ->", "nodeType": "action", "pinsIn": 1, "pinsOut": 1 }
+    },
+    {
+      "id": "group-node",
+      "type": "flowNode",
+      "position": { "x": 430, "y": 390 },
+      "data": {
+        "label": "Double click header to enter group!",
+        "nodeType": "group",
+        "pinsIn": 1,
+        "pinsOut": 1,
+        "innerNodes": [
+          {
+            "id": "groups-cool",
+            "type": "flowNode",
+            "position": { "x": 300, "y": 40 },
+            "data": { "label": "Groups are cool!", "nodeType": "action", "pinsIn": 1, "pinsOut": 1 }
+          }
+        ],
+        "innerEdges": [
+          { "id": "ie-in-cool",  "source": "__gateway_in_0",  "target": "groups-cool",     "sourceHandle": null,        "targetHandle": "pin-in-0",  "animated": false, "style": { "stroke": "#fff" } },
+          { "id": "ie-cool-out", "source": "groups-cool",     "target": "__gateway_out_0",  "sourceHandle": "pin-out-0", "targetHandle": null,        "animated": false, "style": { "stroke": "#fff" } }
+        ]
+      }
+    },
+    {
+      "id": "property-node",
+      "type": "flowNode",
+      "position": { "x": 745, "y": 390 },
+      "data": {
+        "label": "Double Click this one's header too!",
+        "nodeType": "action",
+        "pinsIn": 1,
+        "pinsOut": 1,
+        "hasProperties": true,
+        "innerNodes": [
+          {
+            "id": "prop-cool",
+            "type": "propertyNode",
+            "position": { "x": 200, "y": 20 },
+            "data": { "propertyType": "Slider", "name": "Properties are cool!", "min": 0, "max": 100, "sliderValue": 100 }
+          }
+        ],
+        "innerEdges": []
+      }
+    },
+    {
+      "id": "code-tab",
+      "type": "flowNode",
+      "position": { "x": 1065, "y": 390 },
+      "data": { "label": "Now select the CODE tab to see it all!", "nodeType": "event", "pinsIn": 1, "pinsOut": 0 }
+    }
+  ],
+  "edges": [
+    { "id": "e-welcome-edit",   "source": "welcome",       "target": "edit-nodes",    "sourceHandle": "pin-out-0", "targetHandle": "pin-in-0", "animated": false, "style": { "stroke": "#fff" } },
+    { "id": "e-edit-group",     "source": "edit-nodes",    "target": "group-node",    "sourceHandle": "pin-out-0", "targetHandle": "pin-in-0", "animated": false, "style": { "stroke": "#fff" } },
+    { "id": "e-group-property", "source": "group-node",    "target": "property-node", "sourceHandle": "pin-out-0", "targetHandle": "pin-in-0", "animated": false, "style": { "stroke": "#fff" } },
+    { "id": "e-property-code",  "source": "property-node", "target": "code-tab",      "sourceHandle": "pin-out-0", "targetHandle": "pin-in-0", "animated": false, "style": { "stroke": "#fff" } }
+  ]
+}
