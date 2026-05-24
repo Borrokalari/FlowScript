@@ -3,24 +3,8 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 
-export function mountReactFlow(elementId, options = {}) {
-  const container = document.getElementById(elementId);
-
-  if (!container) {
-    console.error(`FlowScriptReact: element #${elementId} not found`);
-    return null;
-  }
-
-  const root = ReactDOM.createRoot(container);
-
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-
-  return root;
-}
-
-// ⭐ Make it available to Bubble
-window.mountReactFlow = mountReactFlow;
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

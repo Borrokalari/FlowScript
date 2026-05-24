@@ -1,197 +1,220 @@
+import React from 'react';
 import { ReactFlowProvider } from 'reactflow';
-import React, { useEffect } from 'react';
-import ReactFlow, {
-  Handle,
-  Position,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  applyNodeChanges,
-  applyEdgeChanges,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
+import FlowCanvas, { NODE_ICONS, rootNodes, rootEdges } from './FlowCanvas';
+import CodeEditor from './CodeEditor';
+import { serialize } from './dsl/serializer';
+import { parse }     from './dsl/parser';
 import './App.css';
 
-import action_icon from './NodeIcons/action_icon.png';
-import condition_icon from './NodeIcons/condition_icon.png';
-import data_icon from './NodeIcons/data_icon.png';
-import event_icon from './NodeIcons/event_icon.png';
-import group_icon from './NodeIcons/group_icon.png';
+// Commits every nested level of navStack back up to root using the live
+// canvas state, mirroring the logic in handleExitLevel.
+function buildRootState(navStack, liveNodes, liveEdges) {
+  if (navStack.length === 1) {
+    return { nodes: liveNodes, edges: liveEdges };
+  }
 
-function FlowNode({ data }) {
-  return (
-    <div className="flow-node" data-drag-handle>
-      <div className="flow-node-header">
-        <span className="flow-node-title">{data.label}</span>
-        <button className="flow-node-menu">...</button>
-      </div>
+  let nodes = liveNodes;
+  let edges = liveEdges;
 
-      <div className="flow-node-body">
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="flow-node-handle"
-          isConnectable={true}
-        />
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="flow-node-handle"
-          isConnectable={true}
-        />
+  for (let depth = navStack.length - 1; depth > 0; depth--) {
+    const enteredId    = navStack[depth].levelId;
+    const parentLevel  = navStack[depth - 1];
+    const persistNodes = nodes.filter(n => !n.id.startsWith('__gateway_'));
 
-        <div
-          className="flow-node-icon"
-          style={{
-            backgroundImage: `url(${data.icon})`,
-          }}
-        />
-      </div>
-    </div>
-  );
+    nodes = parentLevel.nodes.map(n => {
+      if (n.id !== enteredId) return n;
+      let data = { ...n.data, innerNodes: persistNodes, innerEdges: edges };
+      if (persistNodes.length > 0 && n.data.nodeType !== 'group') {
+        data = { ...data, prevNodeType: n.data.nodeType, prevIcon: n.data.icon, nodeType: 'group', icon: NODE_ICONS.group };
+      } else if (persistNodes.length === 0 && n.data.nodeType === 'group') {
+        data = { ...data, nodeType: n.data.prevNodeType || 'action', icon: n.data.prevIcon || NODE_ICONS.action, prevNodeType: undefined, prevIcon: undefined };
+      }
+      return { ...n, data };
+    });
+    edges = parentLevel.edges;
+  }
+
+  return { nodes, edges };
 }
 
-const nodeTypes = {
-  flowNode: FlowNode,
-};
+function parseCommand(input) {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
 
-const initialNodes = [
-  {
-    id: '1',
-    type: 'flowNode',
-    position: { x: 250, y: 5 },
-    data: { label: 'getmilk', icon: action_icon },
-  },
-];
+  // addNode(name) in, out, ... — legacy explicit syntax
+  const explicit = trimmed.match(/^addNode\(([^)]*)\)(.*)$/);
+  if (explicit) {
+    const name  = explicit[1].trim() || 'new node';
+    const parts = explicit[2].trim().split(',').map((p) => p.trim().toLowerCase()).filter(Boolean);
+    return {
+      label:    name,
+      nodeType: 'action',
+      icon:     NODE_ICONS.action,
+      pinsIn:   parts.filter((p) => p === 'in').length  || 1,
+      pinsOut:  parts.filter((p) => p === 'out').length || 1,
+    };
+  }
 
-const initialEdges = [];
+  // Plain label — "nodeName" creates an action node with 1 in, 1 out
+  return { label: trimmed, nodeType: 'action', icon: NODE_ICONS.action, pinsIn: 1, pinsOut: 1 };
+}
 
 export default function App() {
-  const [nodes, setNodes] = useNodesState(initialNodes);
-  const [edges, setEdges] = useEdgesState(initialEdges);
+  const [mode, setMode]       = React.useState('graph');
+  const [command, setCommand] = React.useState('');
+  const [dslText, setDslText] = React.useState('');
+  const canvasRef = React.useRef(null);
 
-  //
-  // 1. ENGINE INITIALIZATION
-  //
-  useEffect(() => {
-    if (window.FlowScriptReact) {
-      window.FlowScriptReact.init({
-        setNodes,
-        setEdges,
-        initialNodes,
-        initialEdges,
-      });
+  const [navStack, setNavStack] = React.useState([
+    { levelId: null, nodes: rootNodes, edges: rootEdges },
+  ]);
+
+  const currentLevel = navStack[navStack.length - 1];
+
+  const handleModeChange = React.useCallback((newMode) => {
+    if (newMode === mode) return;
+    if (newMode === 'code') {
+      const live      = canvasRef.current?.getState();
+      const liveNodes = live?.nodes ?? navStack[navStack.length - 1].nodes;
+      const liveEdges = live?.edges ?? navStack[navStack.length - 1].edges;
+      const root      = buildRootState(navStack, liveNodes, liveEdges);
+      setDslText(serialize(root.nodes, root.edges));
+      setNavStack([{ levelId: null, nodes: root.nodes, edges: root.edges }]);
+    } else if (newMode === 'graph' && dslText.trim()) {
+      const { nodes, edges } = parse(dslText, navStack[0].nodes);
+      setNavStack([{ levelId: null, nodes, edges }]);
     }
+    setMode(newMode);
+  }, [mode, dslText, navStack]);
+
+  const handleCommandSubmit = React.useCallback(() => {
+    const trimmed = command.trim();
+    if (!trimmed) return;
+    const data = parseCommand(trimmed);
+    if (data) canvasRef.current?.addNode(data);
+    setCommand('');
+  }, [command]);
+
+  const handleEnterNode = React.useCallback((nodeId, currentNodes, currentEdges) => {
+    const entered     = currentNodes.find((n) => n.id === nodeId);
+    const innerNodes  = entered?.data?.innerNodes  || [];
+    const innerEdges  = entered?.data?.innerEdges  || [];
+    const pinsIn      = entered?.data?.pinsIn      ?? 1;
+    const pinsOut     = entered?.data?.pinsOut     ?? 1;
+    const pinInNames  = entered?.data?.pinInNames  || [];
+    const pinOutNames = entered?.data?.pinOutNames || [];
+
+    const inGateways = Array.from({ length: pinsIn }, (_, i) => ({
+      id:         `__gateway_in_${i}`,
+      type:       'pinGateway',
+      position:   { x: 20, y: 60 + 80 * i },
+      draggable:  false,
+      selectable: false,
+      data:       { side: 'in', label: pinInNames[i] || '' },
+    }));
+    const outGateways = Array.from({ length: pinsOut }, (_, i) => ({
+      id:         `__gateway_out_${i}`,
+      type:       'pinGateway',
+      position:   { x: 860, y: 60 + 80 * i },
+      draggable:  false,
+      selectable: false,
+      data:       { side: 'out', label: pinOutNames[i] || '' },
+    }));
+
+    setNavStack((prev) => [
+      ...prev.slice(0, -1),
+      { ...prev[prev.length - 1], nodes: currentNodes, edges: currentEdges },
+      { levelId: nodeId, nodes: [...inGateways, ...outGateways, ...innerNodes], edges: innerEdges },
+    ]);
   }, []);
 
-  //
-  // 2. DELETE KEY HANDLER (edges only)
-  //
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Delete" || e.key === "Backspace") {
-        setEdges((eds) => {
-          const remaining = eds.filter((edge) => !edge.selected);
+  const handleExitLevel = React.useCallback((innerNodes, innerEdges) => {
+    setNavStack((prev) => {
+      const parentIdx = prev.length - 2;
+      const enteredId = prev[prev.length - 1].levelId;
 
-          eds.forEach((edge) => {
-            if (edge.selected) {
-              window.FlowScriptReact?.emit("edgeDeleted", { id: edge.id });
-            }
-          });
+      const persistNodes = innerNodes.filter((n) => !n.id.startsWith('__gateway_'));
 
-          return remaining;
-        });
-      }
-    };
+      const updatedParent = {
+        ...prev[parentIdx],
+        nodes: prev[parentIdx].nodes.map((n) => {
+          if (n.id !== enteredId) return n;
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [setEdges]);
+          let data = { ...n.data, innerNodes: persistNodes, innerEdges };
 
-  //
-  // 3. SELECTION HANDLER (ReactFlow → engine)
-  //
-  const onSelectionChange = (params) => {
-    const selectedNode = params.nodes?.[0];
-    const id = selectedNode ? selectedNode.id : null;
+          if (persistNodes.length > 0 && n.data.nodeType !== 'group') {
+            data = {
+              ...data,
+              prevNodeType: n.data.nodeType,
+              prevIcon:     n.data.icon,
+              nodeType:     'group',
+              icon:         NODE_ICONS.group,
+            };
+          } else if (persistNodes.length === 0 && n.data.nodeType === 'group') {
+            data = {
+              ...data,
+              nodeType:     n.data.prevNodeType || 'action',
+              icon:         n.data.prevIcon     || NODE_ICONS.action,
+              prevNodeType: undefined,
+              prevIcon:     undefined,
+            };
+          }
 
-    window.FlowScriptReact?.onSelectionChanged(id);
-  };
-
-  //
-  // 4. NODE MOVEMENT HANDLER (ReactFlow → engine)
-  //
-  const onNodeDragStop = (event, node) => {
-    window.FlowScriptReact?.onNodePositionChanged(node.id, node.position);
-  };
-
-  //
-  // 5. EDGE CHANGES (ReactFlow → engine)
-  //
-  const onEdgesChangeWrapped = (changes) => {
-    setEdges((eds) => applyEdgeChanges(changes, eds));
-
-    changes.forEach((change) => {
-      if (change.type === 'remove' && change.id) {
-        window.FlowScriptReact?.emit('edgeDeleted', { id: change.id });
-      }
+          return { ...n, data };
+        }),
+      };
+      return [...prev.slice(0, parentIdx), updatedParent];
     });
-  };
-
-  //
-  // 6. NODE CHANGES (ReactFlow → engine)
-  //
-  const onNodesChangeWrapped = (changes) => {
-    setNodes((nds) => applyNodeChanges(changes, nds));
-
-    changes.forEach((change) => {
-      if (change.type === 'position' && change.position) {
-        window.FlowScriptReact?.onNodePositionChanged(change.id, change.position);
-      }
-    });
-  };
-
-  //
-  // 7. EDGE CREATION (ReactFlow → engine)
-  //
-  const onConnect = (connection) => {
-    setEdges((eds) => {
-      const next = addEdge(connection, eds);
-
-      const newEdge = next[next.length - 1];
-      if (newEdge) {
-        window.FlowScriptReact?.emit('edgeCreated', {
-          id: newEdge.id,
-          source: newEdge.source,
-          target: newEdge.target,
-        });
-      }
-
-      return next;
-    });
-  };
+  }, []);
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#363b40' }}>
-      <ReactFlowProvider>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          proOptions={{ hideAttribution: true }}
-          nodesConnectable={true}
-          nodesDraggable={true}
-          elementsSelectable={true}
-          connectionMode="loose"
-          defaultEdgeOptions={{ type: 'default' }}
+    <div className="app-shell">
+      {/* File menu bar */}
+      <div className="file-menu-bar">
+        <button className="file-menu-btn">File</button>
+      </div>
 
-          onNodesChange={onNodesChangeWrapped}
-          onEdgesChange={onEdgesChangeWrapped}
-          onConnect={onConnect}
-          onSelectionChange={onSelectionChange}
-          onNodeDragStop={onNodeDragStop}
+      {/* FlowBar */}
+      <div className="flowbar">
+        <button
+          className={`flowbar-tab${mode === 'graph' ? ' flowbar-tab--active' : ''}`}
+          onClick={() => handleModeChange('graph')}
+        >
+          GRAPH
+        </button>
+        <button
+          className={`flowbar-tab${mode === 'code' ? ' flowbar-tab--active' : ''}`}
+          onClick={() => handleModeChange('code')}
+        >
+          CODE
+        </button>
+        <input
+          className="flowbar-input"
+          placeholder="Type a flow command..."
+          value={command}
+          onChange={(e) => setCommand(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleCommandSubmit(); }}
         />
-      </ReactFlowProvider>
+        <button className="flowbar-submit" onClick={handleCommandSubmit}>&#9658;</button>
+      </div>
+
+      {/* Content */}
+      <div className="app-content">
+        {mode === 'graph' && (
+          <ReactFlowProvider>
+            <FlowCanvas
+              ref={canvasRef}
+              key={currentLevel.levelId ?? 'root'}
+              initialNodes={currentLevel.nodes}
+              initialEdges={currentLevel.edges}
+              isNested={navStack.length > 1}
+              onEnterNode={handleEnterNode}
+              onExitLevel={handleExitLevel}
+            />
+          </ReactFlowProvider>
+        )}
+        {mode === 'code' && <CodeEditor value={dslText} onChange={setDslText} />}
+      </div>
     </div>
   );
 }

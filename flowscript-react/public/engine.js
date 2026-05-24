@@ -1,9 +1,9 @@
-// FlowScriptReact: central engine for FlowScript
+// FlowScriptEngine: central engine for FlowScript
 // - Owns graph state
-// - Talks to ReactFlow
-// - Talks to Bubble + Monaco via events/commands
+// - Talks to ReactFlow via injected setters
+// - No Bubble, no iframe, no parent window
 
-window.FlowScriptReact = {
+const FlowScriptEngine = {
   // -------------------------
   // Internal state
   // -------------------------
@@ -11,44 +11,37 @@ window.FlowScriptReact = {
   _edges: [],
   _selectedNodeId: null,
 
-  // ReactFlow setters (injected from the React side)
+  // ReactFlow setters (injected from React)
   _setNodes: null,
   _setEdges: null,
 
   // -------------------------
-  // Initialization from React
+  // Initialization
   // -------------------------
   init({ setNodes, setEdges, initialNodes = [], initialEdges = [] }) {
     this._setNodes = setNodes;
     this._setEdges = setEdges;
 
-    this._nodes = initialNodes;
-    this._edges = initialEdges;
+    this._nodes = [...initialNodes];
+    this._edges = [...initialEdges];
 
     this._setNodes(this._nodes);
     this._setEdges(this._edges);
   },
 
   // -------------------------
-  // Selection handling (ReactFlow → engine)
+  // Selection handling
   // -------------------------
   onSelectionChanged(nodeId) {
     const id = nodeId ? String(nodeId) : null;
     this._selectedNodeId = id;
-
-    console.log("FlowScriptReact.onSelectionChanged:", id);
-
-    // If you still want to notify Bubble, do it here (optional)
-    // if (window.bubble_fn_selectionChanged) {
-    //   window.bubble_fn_selectionChanged(id);
-    // }
+    console.log("FlowScriptEngine.onSelectionChanged:", id);
   },
 
   // -------------------------
-  // Graph mutation API (model)
+  // Graph mutation API
   // -------------------------
   addNode(nodeConfig) {
-    // nodeConfig: { id?, type?, position, data, ... }
     const id = nodeConfig.id || String(Date.now());
 
     const newNode = {
@@ -68,7 +61,7 @@ window.FlowScriptReact = {
 
   deleteNode(nodeId) {
     const id = String(nodeId);
-    console.log("FlowScriptReact.deleteNode:", id);
+    console.log("FlowScriptEngine.deleteNode:", id);
 
     this._nodes = this._nodes.filter((n) => n.id !== id);
     this._edges = this._edges.filter(
@@ -85,16 +78,14 @@ window.FlowScriptReact = {
     this._emitGraphChanged();
   },
 
-  // Command‑level helper: Bubble calls this
   deleteSelectedNode() {
     if (!this._selectedNodeId) {
-      console.warn("FlowScriptReact.deleteSelectedNode: no node selected");
+      console.warn("FlowScriptEngine.deleteSelectedNode: no node selected");
       return;
     }
     this.deleteNode(this._selectedNodeId);
   },
 
-  // Example: ReactFlow node drag/move → engine
   onNodePositionChanged(nodeId, position) {
     const id = String(nodeId);
 
@@ -107,7 +98,7 @@ window.FlowScriptReact = {
   },
 
   // -------------------------
-  // Graph sync / DSL hooks
+  // Graph sync
   // -------------------------
   setGraph({ nodes, edges }) {
     this._nodes = nodes || [];
@@ -126,29 +117,13 @@ window.FlowScriptReact = {
     };
   },
 
-  // Here’s where Monaco sync plugs in:
-  // serializeGraphToDSL() { ... }
-  // loadDSL(dslString) { ... }
-
   // -------------------------
-  // Event emission (Bubble / Monaco)
+  // Event emission (local only)
   // -------------------------
   _emitGraphChanged() {
-    console.log("FlowScriptReact.graphChanged:", this._nodes, this._edges);
-
-    // Bubble bridge (optional)
-    // if (window.bubble_fn_graphChanged) {
-    //   window.bubble_fn_graphChanged(JSON.stringify(this.getGraph()));
-    // }
-
-    // Monaco bridge (optional)
-    // if (window.FlowScriptMonaco && window.FlowScriptMonaco.onGraphChanged) {
-    //   window.FlowScriptMonaco.onGraphChanged(this.getGraph());
-    // }
+    console.log("FlowScriptEngine.graphChanged:", this._nodes, this._edges);
+    // No Bubble, no Monaco — clean and local
   },
 };
 
-// Expose engine to Bubble parent window (HTML element runs in an iframe)
-if (window.parent && window.parent !== window) {
-  window.parent.FlowScriptReact = window.FlowScriptReact;
-}
+export default FlowScriptEngine;
