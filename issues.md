@@ -21,6 +21,7 @@ This document tracks bugs, polish items, and future ideas discovered while using
 - [x] graph.zoomall not consistent: should be: zoom(node name or all)
 - [x] Shapes background means you can't click through
 - [x] Shapes are deleted when switching from GRAPH to CODE and back
+- [x] User created themes not deleted
 
 ---
 
