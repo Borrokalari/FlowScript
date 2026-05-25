@@ -20,6 +20,7 @@ This document tracks bugs, polish items, and future ideas discovered while using
 - [x] Sometimes the open recent menu doesn't open
 - [x] graph.zoomall not consistent: should be: zoom(node name or all)
 - [x] Shapes background means you can't click through
+- [x] Shapes are deleted when switching from GRAPH to CODE and back
 
 ---
 
@@ -49,7 +50,7 @@ This document tracks bugs, polish items, and future ideas discovered while using
 - [x] Auto close parentheses when adding one just like Typora
 - [x] Create Themes directly in FlowScript: FlowBar command pops the modal. newTheme(name)
 - [x] FlowBar command: cookNode(name) "cooks" the node by darkening their colors until almost black. Any action on it restores it (easter egg)
-- [ ] Found a bug type of modal window for users that find issues
+- [x] Found a bug type of modal window for users that find issues
 
 ---
 
