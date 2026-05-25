@@ -68,8 +68,8 @@ const THEMES = {
     nodeHeaderBg:    '#3E5263',
     nodeHandleBg:    '#C6C8B1',
     nodeMenuBg:      '#F88E30',
-    pinGatewayBg:    'transparent',
-    pinGatewayBorder:'transparent',
+    pinGatewayBg:    '#9EA08E',
+    pinGatewayBorder:'#9EA08E',
   },
   Command: {
     nodeBodyBg:      '#9DA6B5',
@@ -77,8 +77,8 @@ const THEMES = {
     nodeHeaderBg:    '#363F4E',
     nodeHandleBg:    '#D1D6DA',
     nodeMenuBg:      '#B44A3F',
-    pinGatewayBg:    'transparent',
-    pinGatewayBorder:'transparent',
+    pinGatewayBg:    '#A7ABAE',
+    pinGatewayBorder:'#A7ABAE',
   },
   Outpost: {
     nodeBodyBg:      '#DED7B5',
@@ -86,8 +86,8 @@ const THEMES = {
     nodeHeaderBg:    '#62583D',
     nodeHandleBg:    '#8E7F5C',
     nodeMenuBg:      '#F3590A',
-    pinGatewayBg:    'transparent',
-    pinGatewayBorder:'transparent',
+    pinGatewayBg:    '#72664A',
+    pinGatewayBorder:'#72664A',
   },
 };
 
@@ -334,6 +334,12 @@ function parseCommand(input) {
   m = t.match(/^renameNode\(([^)]*)\)\s*:\s*(.+)$/i);
   if (m) return { command: 'renameNode', name: m[1].trim(), newName: m[2].trim() };
 
+  m = t.match(/^cookNode\(([^)]*)\)$/i);
+  if (m) return { command: 'cookNode', name: m[1].trim() };
+
+  m = t.match(/^newNote\(([^)]*)\)(?:\s*:\s*(.*))?$/i);
+  if (m) return { command: 'newNote', label: m[1].trim() || 'note', noteText: m[2]?.trim() ?? '' };
+
   m = t.match(/^addNode\(([^)]*)\)(.*)$/i);
   if (m) {
     const name  = m[1].trim() || 'new node';
@@ -539,10 +545,11 @@ export default function App() {
   }, [navStack]);
 
   const handleFileSave = React.useCallback(async () => {
-    if (!window.electronAPI) return;
+    if (!window.electronAPI) return false;
     const content = textFileMode ? dslText : getSerializedState();
     const result = await window.electronAPI.saveFile(content);
     if (result.success) { setFileName(result.fileName); setIsDirty(false); refreshRecentFiles(); }
+    return result.success;
   }, [textFileMode, dslText, getSerializedState, refreshRecentFiles]);
 
   const handleFileSaveAs = React.useCallback(async () => {
@@ -626,6 +633,20 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [handleFileSave, handleFileSaveAs, handleFileOpen]);
 
+  // ── Close guard ─────────────────────────────────────────────────────────────
+
+  React.useEffect(() => {
+    const removeCheck = window.electronAPI?.onCheckUnsaved?.(() => {
+      window.electronAPI.sendUnsavedResponse({ isDirty, fileName: fileName || 'Untitled' });
+    });
+    const removeSave = window.electronAPI?.onTriggerSaveAndClose?.(() => {
+      handleFileSave().then((saved) => {
+        if (saved) window.electronAPI.sendSavedAndReady();
+      });
+    });
+    return () => { removeCheck?.(); removeSave?.(); };
+  }, [isDirty, fileName, handleFileSave]);
+
   // ────────────────────────────────────────────────────────────────────────────
 
   const handleCommandSubmit = React.useCallback(() => {
@@ -651,6 +672,13 @@ export default function App() {
       } else if (cmd.command === 'pasteLastNode') {
         const pasted = canvasRef.current?.pasteNode();
         if (pasted) setIsDirty(true);
+      } else if (cmd.command === 'cookNode') {
+        const live = canvasRef.current?.getState();
+        const node = live?.nodes.find((n) => n.data?.label === cmd.name);
+        if (node) canvasRef.current?.cookNode(node.id);
+      } else if (cmd.command === 'newNote') {
+        canvasRef.current?.addNote({ label: cmd.label, noteText: cmd.noteText });
+        setIsDirty(true);
       } else if (cmd.command === 'addNode') {
         canvasRef.current?.addNode({ label: cmd.label, nodeType: cmd.nodeType, icon: cmd.icon, pinsIn: cmd.pinsIn, pinsOut: cmd.pinsOut });
       } else {
@@ -1013,6 +1041,7 @@ export default function App() {
               <tbody>
                 <tr><td><code>name</code></td><td>Create a node (1 in, 1 out)</td></tr>
                 <tr><td><code>addNode(name)</code></td><td>Create an action node</td></tr>
+                <tr><td><code>newNote(name) : text</code></td><td>Create a note node with optional text</td></tr>
                 <tr><td><code>deleteNode(name)</code></td><td>Delete a node by name</td></tr>
                 <tr><td><code>addPins(name) : in N, out N</code></td><td>Add N in and N out pins to a node</td></tr>
                 <tr><td><code>addProperty(name)</code></td><td>Add a property inside a node</td></tr>
@@ -1022,6 +1051,7 @@ export default function App() {
                 <tr><td><code>saveTemplate(name)</code></td><td>Save node by name as a template</td></tr>
                 <tr><td><code>copyNode(name)</code></td><td>Copy a node by name to clipboard</td></tr>
                 <tr><td><code>pasteLastNode</code></td><td>Paste the last copied node</td></tr>
+                <tr><td><code>cookNode(name)</code></td><td>Cooks the node???</td></tr>
                 <tr><td><code>showHelp</code></td><td>Show this window</td></tr>
               </tbody>
             </table>

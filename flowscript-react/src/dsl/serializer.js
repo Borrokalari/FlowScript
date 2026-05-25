@@ -52,12 +52,12 @@ function serializeSection(nodes, edges, indent) {
   const labelSeen  = {};
   const dslNameOf  = new Map();
   for (const n of nodes) {
-    if (n.type !== 'flowNode') continue;
+    if (n.type !== 'flowNode' && n.type !== 'noteNode') continue;
     const lbl = n.data?.label ?? 'node';
     labelCount[lbl] = (labelCount[lbl] || 0) + 1;
   }
   for (const n of nodes) {
-    if (n.type !== 'flowNode') continue;
+    if (n.type !== 'flowNode' && n.type !== 'noteNode') continue;
     const lbl = n.data?.label ?? 'node';
     if (labelCount[lbl] === 1) {
       dslNameOf.set(n.id, lbl);
@@ -68,6 +68,30 @@ function serializeSection(nodes, edges, indent) {
   }
 
   for (const node of nodes) {
+    if (node.type === 'noteNode') {
+      const d    = node.data;
+      const name = dslNameOf.get(node.id) ?? (d.label ?? node.id);
+
+      lines.push(`${indent}node ${dslLabel(name)} : note`);
+
+      const inPins  = Array.from({ length: d.pinsIn  ?? 0 }, (_, i) => d.pinInNames?.[i]?.trim()  || '_');
+      const outPins = Array.from({ length: d.pinsOut ?? 0 }, (_, i) => d.pinOutNames?.[i]?.trim() || '_');
+
+      if (inPins.length)  lines.push(`${indent}\tin\t${inPins.join(', ')}`);
+      if (outPins.length) lines.push(`${indent}\tout\t${outPins.join(', ')}`);
+
+      if (d.noteText) {
+        const escaped = d.noteText
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g,  '\\"')
+          .replace(/\n/g, '\\n');
+        lines.push(`${indent}\ttext\t"${escaped}"`);
+      }
+
+      lines.push('');
+      continue;
+    }
+
     if (node.type !== 'flowNode') continue;
     const d    = node.data;
     const name = dslNameOf.get(node.id) ?? (d.label ?? node.id);

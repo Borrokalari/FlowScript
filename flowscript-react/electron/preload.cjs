@@ -40,4 +40,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     maximizeChangeListener = (_, val) => cb(val);
     ipcRenderer.on('win:maximizeChange', maximizeChangeListener);
   },
+  onCheckUnsaved: (cb) => {
+    const wrapped = () => cb();
+    ipcRenderer.on('win:checkUnsaved', wrapped);
+    return () => ipcRenderer.removeListener('win:checkUnsaved', wrapped);
+  },
+  sendUnsavedResponse: (data) => ipcRenderer.send('win:unsavedResponse', data),
+  onTriggerSaveAndClose: (cb) => {
+    const wrapped = () => cb();
+    ipcRenderer.on('win:triggerSaveAndClose', wrapped);
+    return () => ipcRenderer.removeListener('win:triggerSaveAndClose', wrapped);
+  },
+  sendSavedAndReady: () => ipcRenderer.send('win:savedAndReady'),
 });

@@ -76,6 +76,18 @@ function computeNodeHeight(pinsIn, pinsOut) {
   return Math.max(100, 20 + (maxPins + 1) * 20);
 }
 
+const NOTE_NODE_WIDTH  = 200;
+const NOTE_NODE_HEIGHT = 130;
+
+function getNodeSize(node) {
+  if (node.type === 'noteNode')     return { w: NOTE_NODE_WIDTH,  h: NOTE_NODE_HEIGHT };
+  if (node.type === 'propertyNode') return { w: 215, h: 120 };
+  return {
+    w: computeNodeWidth(node.data?.label ?? ''),
+    h: computeNodeHeight(node.data?.pinsIn ?? 1, node.data?.pinsOut ?? 1),
+  };
+}
+
 function pinPositions(count, totalHeight) {
   if (count === 0) return [];
   const bodyHeight = totalHeight - 20;
@@ -97,10 +109,9 @@ function findFreePosition(existingNodes, newW, newH, startX, startY) {
 
   const isBlocked = (cx, cy) =>
     existingNodes
-      .filter((n) => n.type === 'flowNode' || n.type === 'propertyNode')
+      .filter((n) => n.type === 'flowNode' || n.type === 'propertyNode' || n.type === 'noteNode')
       .some((n) => {
-        const nW = n.type === 'propertyNode' ? 215 : computeNodeWidth(n.data?.label ?? '');
-        const nH = n.type === 'propertyNode' ? 120 : computeNodeHeight(n.data?.pinsIn ?? 1, n.data?.pinsOut ?? 1);
+        const { w: nW, h: nH } = getNodeSize(n);
         return (
           cx < n.position.x + nW + gap &&
           cx + newW + gap > n.position.x &&
@@ -156,7 +167,7 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
   }, [menuOpen]);
 
   return (
-    <div className="flow-node" style={{ width, height }} data-drag-handle>
+    <div className="flow-node" style={{ width, height, filter: data._cookProgress > 0 ? `sepia(${Math.min(data._cookProgress * 2, 1)}) brightness(${1 - data._cookProgress})` : undefined }} data-drag-handle>
       <div
         className="flow-node-header"
         onDoubleClick={(e) => { e.stopPropagation(); onEnterNode(id); }}
@@ -302,6 +313,92 @@ function PinGatewayNode({ data }) {
         className="pin-gateway-handle"
         isConnectable={true}
       />
+    </div>
+  );
+}
+
+// ─── NoteNode ────────────────────────────────────────────────────────────────
+
+function NoteNode({ id, data, onDeleteNode, onEditNode, onDuplicateNode, onUpdateNote }) {
+  const [menuOpen,  setMenuOpen]  = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [draft,     setDraft]     = React.useState(data.noteText ?? '');
+  const menuRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!isEditing) setDraft(data.noteText ?? '');
+  }, [data.noteText, isEditing]);
+
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [menuOpen]);
+
+  const saveNote = () => { onUpdateNote(id, draft); setIsEditing(false); };
+
+  const pinsIn  = data.pinsIn  ?? 1;
+  const pinsOut = data.pinsOut ?? 1;
+
+  return (
+    <div className="flow-node note-node" style={{ width: NOTE_NODE_WIDTH, height: NOTE_NODE_HEIGHT, filter: data._cookProgress > 0 ? `sepia(${Math.min(data._cookProgress * 2, 1)}) brightness(${1 - data._cookProgress})` : undefined }}>
+      <div className="flow-node-header">
+        <span className="flow-node-title">{data.label}</span>
+        <div className="flow-node-menu-wrap" ref={menuRef}>
+          <button
+            className="flow-node-menu"
+            onMouseDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+          >
+            ...
+          </button>
+          {menuOpen && (
+            <div className="flow-node-dropdown">
+              <button className="flow-node-dropdown-item" onMouseDown={(e) => e.stopPropagation()} onClick={() => { onEditNode(id); setMenuOpen(false); }}>Edit</button>
+              <button className="flow-node-dropdown-item" onMouseDown={(e) => e.stopPropagation()} onClick={() => { onDuplicateNode(id); setMenuOpen(false); }}>Duplicate Node</button>
+              <button className="flow-node-dropdown-item flow-node-dropdown-item--danger" onMouseDown={(e) => e.stopPropagation()} onClick={() => onDeleteNode(id)}>Delete Node</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div
+        className="note-node-body"
+        onDoubleClick={(e) => { e.stopPropagation(); if (!isEditing) { setDraft(data.noteText ?? ''); setIsEditing(true); } }}
+      >
+        {isEditing ? (
+          <textarea
+            className="note-node-textarea nodrag"
+            value={draft}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveNote(); }
+              if (e.key === 'Escape') { setDraft(data.noteText ?? ''); setIsEditing(false); }
+            }}
+            onBlur={saveNote}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <div className="note-node-text">
+            {data.noteText
+              ? <span style={{ whiteSpace: 'pre-wrap' }}>{data.noteText}</span>
+              : <span className="note-node-placeholder">Double click to write a note</span>
+            }
+          </div>
+        )}
+      </div>
+
+      {pinPositions(pinsIn, NOTE_NODE_HEIGHT).map((top, i) => (
+        <Handle key={`in-${i}`} id={`pin-in-${i}`} type="target" position={Position.Left}
+          style={{ top: `${top}px` }} className="flow-node-handle" isConnectable={true} />
+      ))}
+      {pinPositions(pinsOut, NOTE_NODE_HEIGHT).map((top, i) => (
+        <Handle key={`out-${i}`} id={`pin-out-${i}`} type="source" position={Position.Right}
+          style={{ top: `${top}px` }} className="flow-node-handle" isConnectable={true} />
+      ))}
     </div>
   );
 }
@@ -467,22 +564,26 @@ function PropertyNode({ id, data, onDeleteProperty, onChangePropertyType, onUpda
 // ─── EditModal ────────────────────────────────────────────────────────────────
 
 function EditModal({ node, onSave, onClose }) {
+  const isNote = node.type === 'noteNode';
+
   const [label,    setLabel]    = React.useState(node.data.label);
+  const [noteText, setNoteText] = React.useState(node.data.noteText ?? '');
   const [nodeType, setNodeType] = React.useState(node.data.nodeType ?? 'action');
   const [pinsIn,   setPinsIn]   = React.useState(node.data.pinsIn  ?? 1);
   const [pinsOut,  setPinsOut]  = React.useState(node.data.pinsOut ?? 1);
 
   React.useEffect(() => {
-    if (nodeType === 'group') return;
+    if (isNote || nodeType === 'group') return;
     const inferred = inferNodeType(pinsIn, pinsOut);
     if (inferred) setNodeType(inferred);
-  }, [pinsIn, pinsOut]);
+  }, [pinsIn, pinsOut, isNote]);
 
   const handleSave = () => {
-    onSave({
-      ...node,
-      data: { ...node.data, label, nodeType, icon: NODE_ICONS[nodeType], pinsIn, pinsOut },
-    });
+    if (isNote) {
+      onSave({ ...node, data: { ...node.data, label, noteText } });
+    } else {
+      onSave({ ...node, data: { ...node.data, label, nodeType, icon: NODE_ICONS[nodeType], pinsIn, pinsOut } });
+    }
   };
 
   return ReactDOM.createPortal(
@@ -492,7 +593,7 @@ function EditModal({ node, onSave, onClose }) {
     >
       <div className="modal">
         <div className="modal-header">
-          <span className="modal-title">Edit Node</span>
+          <span className="modal-title">{isNote ? 'Edit Note' : 'Edit Node'}</span>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
@@ -508,49 +609,64 @@ function EditModal({ node, onSave, onClose }) {
             />
           </div>
 
-          <div className="modal-field">
-            <label className="modal-label">Type</label>
-            <div className="modal-type-row">
-              <select
-                className="modal-select"
-                value={nodeType}
-                onChange={(e) => setNodeType(e.target.value)}
-                disabled={nodeType === 'group'}
-                title={nodeType === 'group' ? 'Type is locked while the node has inner content' : undefined}
-              >
-                {nodeType === 'group' ? (
-                  <option value="group">Group (has inner nodes)</option>
-                ) : (
-                  <>
-                    <option value="action">Action</option>
-                    <option value="condition">Condition</option>
-                    <option value="data">Data</option>
-                    <option value="event">Event</option>
-                  </>
-                )}
-              </select>
-              <div
-                className="modal-type-icon"
-                style={{ backgroundImage: `url(${NODE_ICONS[nodeType]})` }}
+          {isNote ? (
+            <div className="modal-field">
+              <label className="modal-label">Note</label>
+              <textarea
+                className="modal-input note-modal-textarea"
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                rows={6}
+                onMouseDown={(e) => e.stopPropagation()}
               />
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="modal-field">
+                <label className="modal-label">Type</label>
+                <div className="modal-type-row">
+                  <select
+                    className="modal-select"
+                    value={nodeType}
+                    onChange={(e) => setNodeType(e.target.value)}
+                    disabled={nodeType === 'group'}
+                    title={nodeType === 'group' ? 'Type is locked while the node has inner content' : undefined}
+                  >
+                    {nodeType === 'group' ? (
+                      <option value="group">Group (has inner nodes)</option>
+                    ) : (
+                      <>
+                        <option value="action">Action</option>
+                        <option value="condition">Condition</option>
+                        <option value="data">Data</option>
+                        <option value="event">Event</option>
+                      </>
+                    )}
+                  </select>
+                  <div
+                    className="modal-type-icon"
+                    style={{ backgroundImage: `url(${NODE_ICONS[nodeType]})` }}
+                  />
+                </div>
+              </div>
 
-          <div className="modal-divider" />
+              <div className="modal-divider" />
 
-          <div className="modal-pins-row">
-            <span className="modal-pins-label">Pin In:</span>
-            <button className="modal-pins-btn" onClick={() => setPinsIn((v) => v + 1)}>+</button>
-            <button className="modal-pins-btn" onClick={() => setPinsIn((v) => Math.max(0, v - 1))}>−</button>
-            <span className="modal-pins-count">{pinsIn}</span>
-          </div>
+              <div className="modal-pins-row">
+                <span className="modal-pins-label">Pin In:</span>
+                <button className="modal-pins-btn" onClick={() => setPinsIn((v) => v + 1)}>+</button>
+                <button className="modal-pins-btn" onClick={() => setPinsIn((v) => Math.max(0, v - 1))}>−</button>
+                <span className="modal-pins-count">{pinsIn}</span>
+              </div>
 
-          <div className="modal-pins-row">
-            <span className="modal-pins-label">Pin Out:</span>
-            <button className="modal-pins-btn" onClick={() => setPinsOut((v) => v + 1)}>+</button>
-            <button className="modal-pins-btn" onClick={() => setPinsOut((v) => Math.max(0, v - 1))}>−</button>
-            <span className="modal-pins-count">{pinsOut}</span>
-          </div>
+              <div className="modal-pins-row">
+                <span className="modal-pins-label">Pin Out:</span>
+                <button className="modal-pins-btn" onClick={() => setPinsOut((v) => v + 1)}>+</button>
+                <button className="modal-pins-btn" onClick={() => setPinsOut((v) => Math.max(0, v - 1))}>−</button>
+                <span className="modal-pins-count">{pinsOut}</span>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="modal-footer">
@@ -591,6 +707,33 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         { id: crypto.randomUUID(), type: 'flowNode', position, data: nodeData },
       ]);
     },
+    cookNode: (nodeId) => {
+      const duration  = 2500;
+      const startTime = performance.now();
+      const tick = (now) => {
+        const progress = Math.min((now - startTime) / duration, 1);
+        setNodes((nds) => {
+          if (!nds.some((n) => n.id === nodeId)) return nds;
+          return nds.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, _cookProgress: progress } } : n);
+        });
+        if (progress < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+          setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+          onDirty?.();
+        }
+      };
+      requestAnimationFrame(tick);
+    },
+    addNote: ({ label, noteText } = {}) => {
+      const center   = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      const position = findFreePosition(nodesRef.current, NOTE_NODE_WIDTH, NOTE_NODE_HEIGHT, center.x, center.y);
+      setNodes((nds) => [
+        ...nds,
+        { id: crypto.randomUUID(), type: 'noteNode', position, data: { label: label || 'note', noteText: noteText || '', pinsIn: 1, pinsOut: 1 } },
+      ]);
+    },
     getState: () => ({
       nodes: nodesRef.current,
       edges: edgesRef.current,
@@ -606,8 +749,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       const src = clipboardRef.current;
       if (!src) return false;
       const copy = instantiateTemplateNode(src);
-      const w    = computeNodeWidth(copy.data.label);
-      const h    = computeNodeHeight(copy.data.pinsIn ?? 1, copy.data.pinsOut ?? 1);
+      const { w, h } = getNodeSize(src);
       copy.position = findFreePosition(nodesRef.current, w, h, src.position.x + 40, src.position.y + 40);
       setNodes((nds) => [...nds, copy]);
       onDirty?.();
@@ -618,8 +760,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       if (!node) return false;
       clipboardRef.current = node;
       const copy = instantiateTemplateNode(node);
-      const w    = computeNodeWidth(copy.data.label);
-      const h    = computeNodeHeight(copy.data.pinsIn ?? 1, copy.data.pinsOut ?? 1);
+      const { w, h } = getNodeSize(node);
       copy.position = findFreePosition(nodesRef.current, w, h, node.position.x + 40, node.position.y + 40);
       setNodes((nds) => [...nds, copy]);
       onDirty?.();
@@ -763,6 +904,11 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     ));
   }, [setNodes]);
 
+  const onUpdateNote = React.useCallback((nodeId, noteText) => {
+    setNodes((nds) => nds.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, noteText } } : n));
+    onDirty?.();
+  }, [setNodes, onDirty]);
+
   const nodeTypes = React.useMemo(() => ({
     flowNode: (props) => (
       <FlowNode
@@ -781,12 +927,28 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
           if (!node) return;
           clipboardRef.current = node;
           const copy = instantiateTemplateNode(node);
-          const w    = computeNodeWidth(copy.data.label);
-          const h    = computeNodeHeight(copy.data.pinsIn ?? 1, copy.data.pinsOut ?? 1);
+          const { w, h } = getNodeSize(node);
           copy.position = findFreePosition(nodesRef.current, w, h, node.position.x + 40, node.position.y + 40);
           setNodes((nds) => [...nds, copy]);
           onDirty?.();
         }}
+      />
+    ),
+    noteNode: (props) => (
+      <NoteNode
+        {...props}
+        onDeleteNode={onDeleteNode}
+        onEditNode={onEditNode}
+        onDuplicateNode={(nodeId) => {
+          const node = nodesRef.current.find((n) => n.id === nodeId);
+          if (!node) return;
+          clipboardRef.current = node;
+          const copy = instantiateTemplateNode(node);
+          copy.position = findFreePosition(nodesRef.current, NOTE_NODE_WIDTH, NOTE_NODE_HEIGHT, node.position.x + 40, node.position.y + 40);
+          setNodes((nds) => [...nds, copy]);
+          onDirty?.();
+        }}
+        onUpdateNote={onUpdateNote}
       />
     ),
     pinGateway: PinGatewayNode,
@@ -798,9 +960,15 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         onUpdatePropertyData={onUpdatePropertyData}
       />
     ),
-  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode, onChangePropertyType, onUpdatePropertyData]);
+  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode, onChangePropertyType, onUpdatePropertyData, onUpdateNote]);
 
   const onSaveEdit = (updatedNode) => {
+    if (updatedNode.type === 'noteNode') {
+      setNodes((nds) => nds.map((n) => n.id === updatedNode.id ? updatedNode : n));
+      setEditingNode(null);
+      onDirty?.();
+      return;
+    }
     const old        = nodesRef.current.find((n) => n.id === updatedNode.id);
     const newPinsIn  = updatedNode.data.pinsIn;
     const newPinsOut = updatedNode.data.pinsOut;
@@ -833,6 +1001,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     }
 
     setEditingNode(null);
+    onDirty?.();
   };
 
   const addNode = () => {
@@ -848,6 +1017,15 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         position,
         data: { label, nodeType: 'action', icon: action_icon, pinsIn, pinsOut },
       },
+    ]);
+  };
+
+  const addNote = () => {
+    const center   = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    const position = findFreePosition(nodesRef.current, NOTE_NODE_WIDTH, NOTE_NODE_HEIGHT, center.x, center.y);
+    setNodes((nds) => [
+      ...nds,
+      { id: crypto.randomUUID(), type: 'noteNode', position, data: { label: 'note', noteText: '', pinsIn: 1, pinsOut: 1 } },
     ]);
   };
 
@@ -880,7 +1058,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       }
 
       if (!isInput && e.ctrlKey && e.key === 'c') {
-        const selected = nodesRef.current.find((n) => n.type === 'flowNode' && n.selected);
+        const selected = nodesRef.current.find((n) => (n.type === 'flowNode' || n.type === 'noteNode') && n.selected);
         if (selected) { clipboardRef.current = selected; e.preventDefault(); }
       }
 
@@ -937,6 +1115,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         <Panel position="top-left">
           <div className="toolbar">
             <button className="toolbar-btn" onClick={addNode}>+ Node</button>
+            <button className="toolbar-btn toolbar-btn--note" onClick={addNote}>+ Note</button>
             {isNested && (
               <button className="toolbar-btn toolbar-btn--property" onClick={addProperty}>+ Property</button>
             )}

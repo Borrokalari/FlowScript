@@ -88,6 +88,10 @@ function createWindow() {
   const wcId = win.webContents.id;
   win.on('maximize',   () => { if (!win.isDestroyed()) win.webContents.send('win:maximizeChange', true); });
   win.on('unmaximize', () => { if (!win.isDestroyed()) win.webContents.send('win:maximizeChange', false); });
+  win.on('close', (e) => {
+    e.preventDefault();
+    win.webContents.send('win:checkUnsaved');
+  });
   win.on('closed', () => {
     windowFilePaths.delete(wcId);
     pendingInitContent.delete(wcId);
@@ -108,6 +112,25 @@ ipcMain.on('win:minimize',  (e) => winFrom(e)?.minimize());
 ipcMain.on('win:maximize',  (e) => { const w = winFrom(e); if (w?.isMaximized()) w.unmaximize(); else w?.maximize(); });
 ipcMain.on('win:close',     (e) => winFrom(e)?.close());
 ipcMain.handle('win:isMaximized', (e) => winFrom(e)?.isMaximized() ?? false);
+
+ipcMain.on('win:unsavedResponse', async (e, { isDirty, fileName }) => {
+  const win = winFrom(e);
+  if (!win) return;
+  if (!isDirty) { win.destroy(); return; }
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'question',
+    buttons: ['Save', "Don't Save", 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+    title: 'Unsaved Changes',
+    message: `Save changes to "${fileName}"?`,
+    detail: 'Your changes will be lost if you don\'t save them.',
+  });
+  if (response === 0) { win.webContents.send('win:triggerSaveAndClose'); }
+  else if (response === 1) { win.destroy(); }
+});
+
+ipcMain.on('win:savedAndReady', (e) => winFrom(e)?.destroy());
 
 // ── File helpers ──────────────────────────────────────────────────────────────
 function commitSave(e, filePath, content) {

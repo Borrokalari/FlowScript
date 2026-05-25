@@ -41,6 +41,25 @@ function resolvePinIndex(ref, names = []) {
   return i >= 0 ? i : 0;
 }
 
+function makeNoteNode(label, existingPos, existingId, autoY, usedIds) {
+  let id = existingId[label];
+  if (!id || usedIds.has(id)) id = crypto.randomUUID();
+  usedIds.add(id);
+  return {
+    id,
+    type:     'noteNode',
+    position: existingPos[label] || { x: 100, y: autoY },
+    data: {
+      label,
+      noteText:    '',
+      pinsIn:      1,
+      pinsOut:     1,
+      pinInNames:  [],
+      pinOutNames: [],
+    },
+  };
+}
+
 function makeNode(label, nodeType, existingPos, existingId, autoY, usedIds) {
   let id = existingId[label];
   if (!id || usedIds.has(id)) id = crypto.randomUUID();
@@ -97,7 +116,7 @@ export function parse(text, existingNodes = []) {
 
   const labelOccurrences = {};
   for (const n of existingNodes) {
-    if (n.type !== 'flowNode' || !n.data?.label) continue;
+    if ((n.type !== 'flowNode' && n.type !== 'noteNode') || !n.data?.label) continue;
     const lbl = n.data.label;
     if (!labelOccurrences[lbl]) labelOccurrences[lbl] = [];
     labelOccurrences[lbl].push(n);
@@ -146,8 +165,11 @@ export function parse(text, existingNodes = []) {
     if (indent === nodeDepth) {
       const nm = content.match(/^node\s+("[^"]*"|\S+)\s*:\s*(\w+)$/);
       if (nm) {
-        const label = unquote(nm[1]);
-        currentNode = makeNode(label, nm[2], existingPos, existingId, autoY, usedIds);
+        const label    = unquote(nm[1]);
+        const nodeType = nm[2];
+        currentNode = nodeType === 'note'
+          ? makeNoteNode(label, existingPos, existingId, autoY, usedIds)
+          : makeNode(label, nodeType, existingPos, existingId, autoY, usedIds);
         autoY += 150;
         section.nodes.push(currentNode);
         continue;
@@ -180,6 +202,8 @@ export function parse(text, existingNodes = []) {
       const outM  = content.match(/^out(?:\s+(.+))?$/);
       const bodyM = content.match(/^body\s+@(\S+)$/);
 
+      const textM = content.match(/^text\s+"(.*)"$/s);
+
       if (inM) {
         const pins = parsePins(inM[1]);
         currentNode.data.pinInNames = pins;
@@ -188,6 +212,11 @@ export function parse(text, existingNodes = []) {
         const pins = parsePins(outM[1]);
         currentNode.data.pinOutNames = pins;
         currentNode.data.pinsOut     = pins.length;
+      } else if (textM) {
+        currentNode.data.noteText = textM[1]
+          .replace(/\\n/g,  '\n')
+          .replace(/\\"/g,  '"')
+          .replace(/\\\\/g, '\\');
       } else if (bodyM) {
         currentNode._bodyRef = bodyM[1];
       } else {

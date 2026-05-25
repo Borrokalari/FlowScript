@@ -382,6 +382,16 @@
   color: #fff;
 }
 
+.toolbar-btn--note {
+  background: #3d4a3a;
+  border-left: 1px solid #666;
+}
+
+.toolbar-btn--note:hover {
+  background: #6a9955;
+  color: #fff;
+}
+
 /* ------------------------------
    FLOW NODE (FlowScript)
    ------------------------------ */
@@ -1010,7 +1020,7 @@
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 600;
-  color: #e0e0e0;
+  color: color-mix(in srgb, var(--pin-gateway-bg, #3d7877) 25%, #111111);
   min-width: 20px;
   min-height: 20px;
   overflow: visible;
@@ -1050,7 +1060,7 @@
 }
 
 .pin-name-label {
-  color: #b0b8c0;
+  color: color-mix(in srgb, var(--node-body-bg, #6c757d) 30%, #111111);
   pointer-events: none;
 }
 
@@ -1082,6 +1092,53 @@
 
   z-index: 10;
   pointer-events: all !important;
+}
+
+/* ------------------------------
+   NOTE NODE
+   ------------------------------ */
+
+.note-node-body {
+  padding: 6px 8px;
+  height: calc(100% - 20px);
+  box-sizing: border-box;
+  cursor: default;
+  overflow: hidden;
+}
+
+.note-node-text {
+  font-size: 10px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--node-body-bg, #6c757d) 25%, #111111);
+  height: 100%;
+  overflow: hidden;
+}
+
+.note-node-placeholder {
+  color: color-mix(in srgb, var(--node-body-bg, #6c757d) 40%, #444444);
+  font-style: italic;
+}
+
+.note-node-textarea {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--node-body-bg, #6c757d) 25%, #111111);
+  box-sizing: border-box;
+  padding: 0;
+}
+
+.note-modal-textarea {
+  resize: vertical;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* ------------------------------
