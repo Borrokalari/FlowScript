@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import { join } from 'path';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 
@@ -274,6 +274,8 @@ ipcMain.handle('tutorial:openNewWindow', () => {
   pendingInitContent.set(win.webContents.id, readFileSync(p, 'utf-8'));
   return { success: true };
 });
+
+ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url));
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(() => {

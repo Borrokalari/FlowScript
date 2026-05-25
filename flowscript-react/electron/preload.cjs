@@ -52,4 +52,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('win:triggerSaveAndClose', wrapped);
   },
   sendSavedAndReady: () => ipcRenderer.send('win:savedAndReady'),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 });

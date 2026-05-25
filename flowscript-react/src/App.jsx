@@ -149,6 +149,7 @@ const MENUS = [
       { label: 'My Account...', disabled: true },
       { type: 'sep' },
       { label: 'Check for Updates...', disabled: true },
+      { label: 'Found an issue?', action: 'help:reportissue' },
       { label: 'About...', action: 'app:about' },
     ],
   },
@@ -400,6 +401,8 @@ export default function App() {
   const [showNewTheme, setShowNewTheme]         = React.useState(false);
   const [newThemeDraft, setNewThemeDraft]       = React.useState(null);
   const [deleteConfirmTheme, setDeleteConfirmTheme] = React.useState(null);
+  const [showIssueReport, setShowIssueReport]   = React.useState(false);
+  const [issueDraft, setIssueDraft]             = React.useState({ title: '', body: '' });
   const [templates, setTemplates]           = React.useState([]);
   const [showTemplates, setShowTemplates]   = React.useState(false);
   const [pendingTemplateNode, setPendingTemplateNode] = React.useState(null);
@@ -461,8 +464,9 @@ export default function App() {
       setDslText(serialize(root.nodes, root.edges));
       setNavStack([{ levelId: null, nodes: root.nodes, edges: root.edges }]);
     } else if (newMode === 'graph' && dslText.trim()) {
+      const shapeNodes = navStack[0].nodes.filter((n) => n.type === 'shapeNode');
       const { nodes, edges } = parse(dslText, navStack[0].nodes);
-      setNavStack([{ levelId: null, nodes, edges }]);
+      setNavStack([{ levelId: null, nodes: [...nodes, ...shapeNodes], edges }]);
     }
     setMode(newMode);
   }, [mode, dslText, navStack, textFileMode]);
@@ -602,10 +606,11 @@ export default function App() {
       case 'file:saveAs': handleFileSaveAs(); break;
       case 'app:close':        window.electronAPI?.close(); break;
       case 'app:newWindow':    window.electronAPI?.newWindow(); break;
-      case 'help:whatsnew':   window.electronAPI?.openWhatsNew(); break;
+      case 'help:whatsnew':    window.electronAPI?.openWhatsNew(); break;
       case 'app:about':        setShowAbout(true); break;
       case 'app:preferences':  setPrefsDraft({ ...prefs }); setShowPrefs(true); break;
       case 'help:quickstart':  handleQuickStart(); break;
+      case 'help:reportissue': setIssueDraft({ title: '', body: '' }); setShowIssueReport(true); break;
     }
   }, [handleFileNew, handleFileOpen, handleFileSave, handleFileSaveAs, handleQuickStart, prefs]);
 
@@ -647,6 +652,16 @@ export default function App() {
     await window.electronAPI?.savePreferences(updated);
     setDeleteConfirmTheme(null);
   }, [prefs, prefsDraft]);
+
+  const handleSubmitIssue = React.useCallback(() => {
+    const { title, body } = issueDraft;
+    if (!title.trim()) return;
+    const url = `https://github.com/Borrokalari/FlowScript/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+    if (window.electronAPI?.openExternal) window.electronAPI.openExternal(url);
+    else window.open(url, '_blank');
+    setShowIssueReport(false);
+    setIssueDraft({ title: '', body: '' });
+  }, [issueDraft]);
 
   const handleSaveAsTemplate = React.useCallback((node) => {
     setPendingTemplateNode(node);
@@ -1041,6 +1056,46 @@ export default function App() {
                   <span className="about-comment">{'// ─────────────────────────────────────'}</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showIssueReport && (
+        <div className="modal-overlay" onClick={() => setShowIssueReport(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>Found an issue?</span>
+              <button className="modal-close" onClick={() => setShowIssueReport(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="modal-field">
+                <label className="modal-label">Title</label>
+                <input
+                  className="modal-input"
+                  value={issueDraft.title}
+                  onChange={(e) => setIssueDraft((d) => ({ ...d, title: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && issueDraft.title.trim()) handleSubmitIssue(); }}
+                  placeholder="Short description of the issue"
+                  autoFocus
+                />
+              </div>
+              <div className="modal-field">
+                <label className="modal-label">Description</label>
+                <textarea
+                  className="note-modal-textarea"
+                  style={{ minHeight: 120, marginTop: 4 }}
+                  value={issueDraft.body}
+                  onChange={(e) => setIssueDraft((d) => ({ ...d, body: e.target.value }))}
+                  placeholder="Steps to reproduce, expected vs actual behavior..."
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn modal-btn--primary" onClick={handleSubmitIssue} disabled={!issueDraft.title.trim()}>
+                Open on GitHub
+              </button>
+              <button className="modal-btn" onClick={() => setShowIssueReport(false)}>Cancel</button>
             </div>
           </div>
         </div>
