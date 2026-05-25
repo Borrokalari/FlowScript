@@ -682,6 +682,123 @@
   text-align: right;
 }
 
+/* ------------------------------
+   THEME SELECTOR (in Preferences)
+   ------------------------------ */
+
+.theme-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: #1e2124;
+  padding: 3px;
+}
+
+.theme-selector-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #ccc;
+  user-select: none;
+}
+
+.theme-selector-item:hover { background: #2e3338; }
+
+.theme-selector-item--selected {
+  background: #3a4a4a;
+  color: #52d7c6;
+}
+
+.theme-selector-name { flex: 1; }
+
+.theme-selector-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  color: #A53333;
+  line-height: 1;
+}
+
+.theme-selector-delete:hover { color: #D94444; }
+
+.theme-selector-confirm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.theme-confirm-label {
+  font-size: 10px;
+  color: #aaa;
+}
+
+.theme-confirm-btn {
+  background: none;
+  border: 1px solid #555;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 5px;
+  color: #ccc;
+}
+
+.theme-confirm-btn--yes:hover { background: #b44a3f; border-color: #b44a3f; color: #fff; }
+.theme-confirm-btn--no:hover  { background: #3a4a4a; }
+
+/* ------------------------------
+   NEW THEME MODAL
+   ------------------------------ */
+
+.new-theme-modal {
+  background: #2b2f33;
+  border: 1px solid #555;
+  border-radius: 5px;
+  width: 540px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  font-family: 'JetBrains Mono', monospace;
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+.new-theme-body {
+  display: flex;
+  gap: 24px;
+  padding: 16px 20px;
+}
+
+.new-theme-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.new-theme-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 160px;
+}
+
+.new-theme-preview-label {
+  font-size: 10px;
+  color: #888;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 /* Edge thickness via CSS variable */
 .react-flow__edge-path {
   stroke-width: var(--edge-stroke-width, 1.5) !important;
@@ -1097,6 +1214,10 @@
 /* ------------------------------
    NOTE NODE
    ------------------------------ */
+
+.note-node {
+  background: color-mix(in srgb, var(--node-body-bg, #6c757d) 65%, #4a7c4a) !important;
+}
 
 .note-node-body {
   padding: 6px 8px;
@@ -1595,4 +1716,20 @@
 .ticks::after {
   right: 0;
   border-right-color: var(--border);
+}
+
+/* ------------------------------
+   SHAPE NODES
+   ------------------------------ */
+
+.react-flow__node-shapeNode {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.shape-node-root {
+  overflow: visible;
 }

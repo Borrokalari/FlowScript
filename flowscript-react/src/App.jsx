@@ -31,7 +31,7 @@ function serializeNodeForTemplate(node) {
 function deserializeFromFile(jsonStr) {
   const { nodes, edges } = JSON.parse(jsonStr);
   const restore = (n) => {
-    if (n.type === 'propertyNode') return n;
+    if (n.type === 'propertyNode' || n.type === 'shapeNode') return n;
     const icon = NODE_ICONS[n.data.nodeType] ?? NODE_ICONS.action;
     const data = { ...n.data, icon };
     if (n.data.prevNodeType) data.prevIcon = NODE_ICONS[n.data.prevNodeType] ?? NODE_ICONS.action;
@@ -91,7 +91,32 @@ const THEMES = {
   },
 };
 
-const DEFAULT_PREFS = { theme: 'FlowScript (Default)', nodeTextColor: '#e0e0e0', edgeThickness: 1.5 };
+const DEFAULT_PREFS = { theme: 'FlowScript (Default)', nodeTextColor: '#e0e0e0', edgeThickness: 1.5, userThemes: {} };
+
+function darkenHex(hex, factor = 0.2) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const d = (v) => Math.round(v * (1 - factor)).toString(16).padStart(2, '0');
+  return `#${d(r)}${d(g)}${d(b)}`;
+}
+
+function ThemePreviewNode({ nodeBodyBg, nodeHeaderBg, nodeMenuBg, nodeHandleBg }) {
+  const pin = { position: 'absolute', width: 10, height: 10, background: nodeHandleBg, border: '2px solid white', borderRadius: 2, top: '50%', transform: 'translateY(-50%)' };
+  return (
+    <div style={{ background: nodeBodyBg, border: '1px solid #555', fontFamily: "'JetBrains Mono',monospace", width: 160, position: 'relative' }}>
+      <div style={{ background: nodeHeaderBg, padding: '3px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, fontWeight: 600, color: '#e0e0e0' }}>
+        <span>preview</span>
+        <span style={{ background: nodeMenuBg, padding: '1px 5px', fontSize: 12, fontWeight: 'bold', color: '#222' }}>...</span>
+      </div>
+      <div style={{ height: 50, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ ...pin, left: -5 }} />
+        <span style={{ fontSize: 10, color: '#888', fontStyle: 'italic' }}>node body</span>
+        <div style={{ ...pin, right: -5 }} />
+      </div>
+    </div>
+  );
+}
 
 // ── Menu definitions ──────────────────────────────────────────────────────────
 
@@ -132,13 +157,9 @@ const MENUS = [
 function TitleBar({ onAction, fileName, isDirty, recentFiles, onOpenRecent, onClearRecent }) {
   const [openIdx, setOpenIdx] = React.useState(null);
   const [submenuOpenIdx, setSubmenuOpenIdx] = React.useState(null);
-  const submenuTimer = React.useRef(null);
   const [maximized, setMaximized] = React.useState(false);
   const barRef = React.useRef(null);
   const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
-
-  const openSubmenu  = (j) => { clearTimeout(submenuTimer.current); setSubmenuOpenIdx(j); };
-  const closeSubmenu = ()  => { submenuTimer.current = setTimeout(() => setSubmenuOpenIdx(null), 150); };
 
   React.useEffect(() => { if (openIdx === null) setSubmenuOpenIdx(null); }, [openIdx]);
 
@@ -179,13 +200,13 @@ function TitleBar({ onAction, fileName, isDirty, recentFiles, onOpenRecent, onCl
                   item.type === 'sep' ? (
                     <div key={j} className="menu-sep" />
                   ) : item.submenuKey === 'recentFiles' ? (
-                    <div key={j} className="menu-item-wrap" onMouseEnter={() => openSubmenu(j)} onMouseLeave={closeSubmenu}>
+                    <div key={j} className="menu-item-wrap" onMouseEnter={() => setSubmenuOpenIdx(j)}>
                       <button className="menu-item">
                         <span>{item.label}</span>
                         <span className="menu-item-arrow">›</span>
                       </button>
                       {submenuOpenIdx === j && (
-                        <div className="menu-submenu" onMouseEnter={() => openSubmenu(j)} onMouseLeave={closeSubmenu}>
+                        <div className="menu-submenu">
                           {!recentFiles?.length ? (
                             <button className="menu-item menu-item--disabled" disabled><span>No recent files</span></button>
                           ) : recentFiles.map((f, k) => (
@@ -211,7 +232,7 @@ function TitleBar({ onAction, fileName, isDirty, recentFiles, onOpenRecent, onCl
                       className={`menu-item${item.disabled ? ' menu-item--disabled' : ''}`}
                       disabled={item.disabled}
                       onMouseDown={(e) => { e.preventDefault(); if (!item.disabled) { setOpenIdx(null); if (item.action) onAction?.(item.action); } }}
-                      onMouseEnter={closeSubmenu}
+                      onMouseEnter={() => setSubmenuOpenIdx(null)}
                     >
                       <span>{item.label}</span>
                       {item.arrow && <span className="menu-item-arrow">›</span>}
@@ -303,7 +324,8 @@ function parseCommand(input) {
   let m;
 
   if (/^showHelp$/i.test(t))       return { command: 'showHelp' };
-  if (/^graph\.zoomall$/i.test(t)) return { command: 'graph.zoomall' };
+  m = t.match(/^zoomNode\(([^)]*)\)$/i);
+  if (m) return { command: 'zoomNode', name: m[1].trim() };
 
   m = t.match(/^saveTemplate\(([^)]*)\)$/i);
   if (m) return { command: 'saveTemplate', name: m[1].trim() };
@@ -334,11 +356,17 @@ function parseCommand(input) {
   m = t.match(/^renameNode\(([^)]*)\)\s*:\s*(.+)$/i);
   if (m) return { command: 'renameNode', name: m[1].trim(), newName: m[2].trim() };
 
+  m = t.match(/^newTheme\(([^)]*)\)$/i);
+  if (m) return { command: 'newTheme', name: m[1].trim() };
+
   m = t.match(/^cookNode\(([^)]*)\)$/i);
   if (m) return { command: 'cookNode', name: m[1].trim() };
 
   m = t.match(/^newNote\(([^)]*)\)(?:\s*:\s*(.*))?$/i);
   if (m) return { command: 'newNote', label: m[1].trim() || 'note', noteText: m[2]?.trim() ?? '' };
+
+  m = t.match(/^addShape\s*\(\s*(box|circle)\s*\)$/i);
+  if (m) return { command: 'addShape', shape: m[1].toLowerCase() };
 
   m = t.match(/^addNode\(([^)]*)\)(.*)$/i);
   if (m) {
@@ -369,6 +397,9 @@ export default function App() {
   const [prefs, setPrefs]               = React.useState(DEFAULT_PREFS);
   const [prefsDraft, setPrefsDraft]     = React.useState(null);
   const [showPrefs, setShowPrefs]       = React.useState(false);
+  const [showNewTheme, setShowNewTheme]         = React.useState(false);
+  const [newThemeDraft, setNewThemeDraft]       = React.useState(null);
+  const [deleteConfirmTheme, setDeleteConfirmTheme] = React.useState(null);
   const [templates, setTemplates]           = React.useState([]);
   const [showTemplates, setShowTemplates]   = React.useState(false);
   const [pendingTemplateNode, setPendingTemplateNode] = React.useState(null);
@@ -590,6 +621,33 @@ export default function App() {
     setShowPrefs(false);
   }, []);
 
+  const handleSaveNewTheme = React.useCallback(async () => {
+    const name = newThemeDraft?.name?.trim();
+    if (!name) return;
+    const { nodeBodyBg, nodeHeaderBg, nodeMenuBg, nodeHandleBg } = newThemeDraft;
+    const darkened = darkenHex(nodeHandleBg, 0.2);
+    const themeObj = { nodeBodyBg, nodeBorder: '#555555', nodeHeaderBg, nodeHandleBg, nodeMenuBg, pinGatewayBg: darkened, pinGatewayBorder: darkened };
+    const updated  = { ...prefs, userThemes: { ...(prefs.userThemes ?? {}), [name]: themeObj }, theme: name };
+    setPrefs(updated);
+    await window.electronAPI?.savePreferences(updated);
+    setShowNewTheme(false);
+    setNewThemeDraft(null);
+  }, [newThemeDraft, prefs]);
+
+  const handleDeleteUserTheme = React.useCallback(async (themeName) => {
+    const updatedUserThemes = { ...(prefs.userThemes ?? {}) };
+    delete updatedUserThemes[themeName];
+    const updated = {
+      ...prefs,
+      userThemes: updatedUserThemes,
+      theme: prefs.theme === themeName ? 'FlowScript (Default)' : prefs.theme,
+    };
+    setPrefs(updated);
+    if (prefsDraft) setPrefsDraft((d) => ({ ...d, theme: updated.theme }));
+    await window.electronAPI?.savePreferences(updated);
+    setDeleteConfirmTheme(null);
+  }, [prefs, prefsDraft]);
+
   const handleSaveAsTemplate = React.useCallback((node) => {
     setPendingTemplateNode(node);
     setTemplateDraftName(node.data.label ?? '');
@@ -659,8 +717,14 @@ export default function App() {
     if (cmd) {
       if (cmd.command === 'showHelp') {
         setShowHelp(true);
-      } else if (cmd.command === 'graph.zoomall') {
-        canvasRef.current?.fitView();
+      } else if (cmd.command === 'zoomNode') {
+        if (cmd.name.toLowerCase() === 'all') {
+          canvasRef.current?.fitView();
+        } else {
+          const live = canvasRef.current?.getState();
+          const node = live?.nodes.find((n) => n.data?.label === cmd.name);
+          if (node) canvasRef.current?.zoomToNode(node.id);
+        }
       } else if (cmd.command === 'saveTemplate') {
         const live = canvasRef.current?.getState();
         const node = live?.nodes.find((n) => n.type === 'flowNode' && n.data?.label === cmd.name);
@@ -672,12 +736,19 @@ export default function App() {
       } else if (cmd.command === 'pasteLastNode') {
         const pasted = canvasRef.current?.pasteNode();
         if (pasted) setIsDirty(true);
+      } else if (cmd.command === 'newTheme') {
+        const base = allThemes[prefs.theme] ?? THEMES['FlowScript (Default)'];
+        setNewThemeDraft({ name: cmd.name || 'My Theme', nodeBodyBg: base.nodeBodyBg, nodeHeaderBg: base.nodeHeaderBg, nodeMenuBg: base.nodeMenuBg, nodeHandleBg: base.nodeHandleBg });
+        setShowNewTheme(true);
       } else if (cmd.command === 'cookNode') {
         const live = canvasRef.current?.getState();
         const node = live?.nodes.find((n) => n.data?.label === cmd.name);
         if (node) canvasRef.current?.cookNode(node.id);
       } else if (cmd.command === 'newNote') {
         canvasRef.current?.addNote({ label: cmd.label, noteText: cmd.noteText });
+        setIsDirty(true);
+      } else if (cmd.command === 'addShape') {
+        canvasRef.current?.addShape(cmd.shape);
         setIsDirty(true);
       } else if (cmd.command === 'addNode') {
         canvasRef.current?.addNode({ label: cmd.label, nodeType: cmd.nodeType, icon: cmd.icon, pinsIn: cmd.pinsIn, pinsOut: cmd.pinsOut });
@@ -797,7 +868,8 @@ export default function App() {
   }, []);
 
   const livePrefs  = prefsDraft ?? prefs;
-  const liveTheme  = THEMES[livePrefs.theme] ?? THEMES['FlowScript (Default)'];
+  const allThemes  = { ...THEMES, ...(prefs.userThemes ?? {}) };
+  const liveTheme  = allThemes[livePrefs.theme] ?? THEMES['FlowScript (Default)'];
   const cssVars = {
     '--node-body-bg':        liveTheme.nodeBodyBg,
     '--node-border-color':   liveTheme.nodeBorder,
@@ -974,6 +1046,53 @@ export default function App() {
         </div>
       )}
 
+      {showNewTheme && newThemeDraft && (
+        <div className="modal-overlay" onClick={() => { setShowNewTheme(false); setNewThemeDraft(null); }}>
+          <div className="new-theme-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">New Nodes Theme</span>
+              <button className="modal-close" onClick={() => { setShowNewTheme(false); setNewThemeDraft(null); }}>×</button>
+            </div>
+            <div className="new-theme-body">
+              <div className="new-theme-form">
+                <div className="modal-field">
+                  <label className="modal-label">Name</label>
+                  <input className="modal-input" value={newThemeDraft.name} onChange={(e) => setNewThemeDraft((d) => ({ ...d, name: e.target.value }))} autoFocus />
+                </div>
+                {[
+                  { label: 'Node Background', key: 'nodeBodyBg'   },
+                  { label: 'Node Header',      key: 'nodeHeaderBg' },
+                  { label: 'Node Button',      key: 'nodeMenuBg'   },
+                  { label: 'Node Pins',        key: 'nodeHandleBg' },
+                ].map(({ label, key }) => (
+                  <div key={key} className="modal-field">
+                    <label className="modal-label">{label}</label>
+                    <div className="prefs-color-row">
+                      <input type="color" className="prefs-color-input" value={newThemeDraft[key]}
+                        onChange={(e) => setNewThemeDraft((d) => ({ ...d, [key]: e.target.value }))} />
+                      <span className="prefs-color-value">{newThemeDraft[key]}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="new-theme-preview">
+                <span className="new-theme-preview-label">Preview</span>
+                <ThemePreviewNode
+                  nodeBodyBg={newThemeDraft.nodeBodyBg}
+                  nodeHeaderBg={newThemeDraft.nodeHeaderBg}
+                  nodeMenuBg={newThemeDraft.nodeMenuBg}
+                  nodeHandleBg={newThemeDraft.nodeHandleBg}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn modal-btn--primary" onClick={handleSaveNewTheme}>Save</button>
+              <button className="modal-btn" onClick={() => { setShowNewTheme(false); setNewThemeDraft(null); }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPrefs && prefsDraft && (
         <div className="modal-overlay" onClick={handleCancelPrefs}>
           <div className="prefs-modal" onClick={(e) => e.stopPropagation()}>
@@ -984,15 +1103,33 @@ export default function App() {
             <div className="modal-body">
               <div className="modal-field">
                 <label className="modal-label">Theme</label>
-                <select
-                  className="modal-select"
-                  value={prefsDraft.theme}
-                  onChange={(e) => setPrefsDraft((d) => ({ ...d, theme: e.target.value }))}
-                >
-                  {Object.keys(THEMES).map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
+                <div className="theme-selector">
+                  {Object.keys(allThemes).map((t) => {
+                    const isUser      = !!(prefs.userThemes ?? {})[t];
+                    const isSelected  = prefsDraft.theme === t;
+                    const isConfirming = deleteConfirmTheme === t;
+                    return (
+                      <div
+                        key={t}
+                        className={`theme-selector-item${isSelected ? ' theme-selector-item--selected' : ''}`}
+                        onClick={() => { setPrefsDraft((d) => ({ ...d, theme: t })); setDeleteConfirmTheme(null); }}
+                      >
+                        <span className="theme-selector-name">{t}</span>
+                        {isUser && !isConfirming && (
+                          <button className="theme-selector-delete" title="Delete theme"
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmTheme(t); }}>🗑</button>
+                        )}
+                        {isUser && isConfirming && (
+                          <div className="theme-selector-confirm" onClick={(e) => e.stopPropagation()}>
+                            <span className="theme-confirm-label">Delete?</span>
+                            <button className="theme-confirm-btn theme-confirm-btn--yes" onClick={() => handleDeleteUserTheme(t)}>✓</button>
+                            <button className="theme-confirm-btn theme-confirm-btn--no" onClick={() => setDeleteConfirmTheme(null)}>✗</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               <div className="modal-field">
                 <label className="modal-label">Node Text Color</label>
@@ -1047,10 +1184,13 @@ export default function App() {
                 <tr><td><code>addProperty(name)</code></td><td>Add a property inside a node</td></tr>
                 <tr><td><code>changeType(name) : type</code></td><td>Change type — action / condition / data / event</td></tr>
                 <tr><td><code>renameNode(name) : new name</code></td><td>Rename a node</td></tr>
-                <tr><td><code>graph.zoomall</code></td><td>Zoom to fit all nodes in view</td></tr>
+                <tr><td><code>zoomNode(name)</code></td><td>Zoom to a specific node by name</td></tr>
+                <tr><td><code>zoomNode(all)</code></td><td>Zoom to fit all nodes in view</td></tr>
                 <tr><td><code>saveTemplate(name)</code></td><td>Save node by name as a template</td></tr>
                 <tr><td><code>copyNode(name)</code></td><td>Copy a node by name to clipboard</td></tr>
                 <tr><td><code>pasteLastNode</code></td><td>Paste the last copied node</td></tr>
+                <tr><td><code>addShape(shape)</code></td><td>Add a box or circle shape (not in CODE mode)</td></tr>
+                <tr><td><code>newTheme(name)</code></td><td>Create a custom node theme</td></tr>
                 <tr><td><code>cookNode(name)</code></td><td>Cooks the node???</td></tr>
                 <tr><td><code>showHelp</code></td><td>Show this window</td></tr>
               </tbody>

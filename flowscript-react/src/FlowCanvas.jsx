@@ -82,6 +82,7 @@ const NOTE_NODE_HEIGHT = 130;
 function getNodeSize(node) {
   if (node.type === 'noteNode')     return { w: NOTE_NODE_WIDTH,  h: NOTE_NODE_HEIGHT };
   if (node.type === 'propertyNode') return { w: 215, h: 120 };
+  if (node.type === 'shapeNode')    return { w: node.data?.shapeWidth ?? 200, h: node.data?.shapeHeight ?? 200 };
   return {
     w: computeNodeWidth(node.data?.label ?? ''),
     h: computeNodeHeight(node.data?.pinsIn ?? 1, node.data?.pinsOut ?? 1),
@@ -109,7 +110,7 @@ function findFreePosition(existingNodes, newW, newH, startX, startY) {
 
   const isBlocked = (cx, cy) =>
     existingNodes
-      .filter((n) => n.type === 'flowNode' || n.type === 'propertyNode' || n.type === 'noteNode')
+      .filter((n) => n.type === 'flowNode' || n.type === 'propertyNode' || n.type === 'noteNode' || n.type === 'shapeNode')
       .some((n) => {
         const { w: nW, h: nH } = getNodeSize(n);
         return (
@@ -399,6 +400,110 @@ function NoteNode({ id, data, onDeleteNode, onEditNode, onDuplicateNode, onUpdat
         <Handle key={`out-${i}`} id={`pin-out-${i}`} type="source" position={Position.Right}
           style={{ top: `${top}px` }} className="flow-node-handle" isConnectable={true} />
       ))}
+    </div>
+  );
+}
+
+// ─── ShapeNode ───────────────────────────────────────────────────────────────
+
+function ShapeNode({ id, data, selected }) {
+  const { setNodes, getNode, getViewport } = useReactFlow();
+  const w = data.shapeWidth  ?? 200;
+  const h = data.shapeHeight ?? 200;
+  const isCircle = data.shapeType === 'circle';
+
+  const startResize = React.useCallback((e, dir) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const node = getNode(id);
+    if (!node) return;
+
+    const { zoom } = getViewport();
+    const startX   = e.clientX;
+    const startY   = e.clientY;
+    const startW   = node.data.shapeWidth  ?? 200;
+    const startH   = node.data.shapeHeight ?? 200;
+    const startNX  = node.position.x;
+    const startNY  = node.position.y;
+
+    const onMove = (me) => {
+      const dx = (me.clientX - startX) / zoom;
+      const dy = (me.clientY - startY) / zoom;
+
+      setNodes(nds => nds.map(n => {
+        if (n.id !== id) return n;
+        let newW = startW, newH = startH, newX = startNX, newY = startNY;
+
+        if (isCircle) {
+          const s = Math.max(60, startW + (dx + dy) / 2);
+          newW = s; newH = s;
+        } else {
+          if (dir === 'right')  newW = Math.max(60, startW + dx);
+          if (dir === 'bottom') newH = Math.max(60, startH + dy);
+          if (dir === 'left')  { newW = Math.max(60, startW - dx); newX = startNX + (startW - newW); }
+          if (dir === 'top')   { newH = Math.max(60, startH - dy); newY = startNY + (startH - newH); }
+        }
+
+        return {
+          ...n,
+          position: { x: newX, y: newY },
+          style:    { ...n.style, width: newW, height: newH },
+          data:     { ...n.data, shapeWidth: newW, shapeHeight: newH },
+        };
+      }));
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [id, isCircle, getNode, getViewport, setNodes]);
+
+  const HS = 10;
+  const hBase = {
+    position: 'absolute',
+    width: HS,
+    height: HS,
+    background: '#e0e0e0',
+    border: '1.5px solid #666',
+    borderRadius: 2,
+    zIndex: 10,
+  };
+
+  return (
+    <div className="shape-node-root" style={{ width: w, height: h, position: 'relative' }}>
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          border: '15px solid var(--node-header-bg, #6ba7a6)',
+          borderRadius: isCircle ? '50%' : 0,
+          background: 'transparent',
+          boxSizing: 'border-box',
+        }}
+      />
+
+      {selected && !isCircle && (
+        <>
+          <div className="nodrag" style={{ ...hBase, top: -HS/2, left: '50%', marginLeft: -HS/2, cursor: 'ns-resize' }}
+               onMouseDown={(e) => startResize(e, 'top')} />
+          <div className="nodrag" style={{ ...hBase, bottom: -HS/2, left: '50%', marginLeft: -HS/2, cursor: 'ns-resize' }}
+               onMouseDown={(e) => startResize(e, 'bottom')} />
+          <div className="nodrag" style={{ ...hBase, left: -HS/2, top: '50%', marginTop: -HS/2, cursor: 'ew-resize' }}
+               onMouseDown={(e) => startResize(e, 'left')} />
+          <div className="nodrag" style={{ ...hBase, right: -HS/2, top: '50%', marginTop: -HS/2, cursor: 'ew-resize' }}
+               onMouseDown={(e) => startResize(e, 'right')} />
+        </>
+      )}
+
+      {selected && isCircle && (
+        <div className="nodrag" style={{ ...hBase, bottom: -HS/2, right: -HS/2, cursor: 'nwse-resize' }}
+             onMouseDown={(e) => startResize(e, 'prop')} />
+      )}
     </div>
   );
 }
@@ -734,11 +839,35 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         { id: crypto.randomUUID(), type: 'noteNode', position, data: { label: label || 'note', noteText: noteText || '', pinsIn: 1, pinsOut: 1 } },
       ]);
     },
+    addShape: (shapeType) => {
+      const center   = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      const sw       = shapeType === 'circle' ? 180 : 240;
+      const sh       = shapeType === 'circle' ? 180 : 160;
+      const position = findFreePosition(nodesRef.current, sw, sh, center.x, center.y);
+      setNodes((nds) => [
+        ...nds.map((n) => ({ ...n, selected: false })),
+        {
+          id:       crypto.randomUUID(),
+          type:     'shapeNode',
+          position,
+          selected: true,
+          style:    { width: sw, height: sh },
+          data:     { shapeType, shapeWidth: sw, shapeHeight: sh },
+        },
+      ]);
+      onDirty?.();
+    },
     getState: () => ({
       nodes: nodesRef.current,
       edges: edgesRef.current,
     }),
     fitView: () => fitView({ padding: 0.15, duration: 300 }),
+    zoomToNode: (nodeId) => {
+      const node = nodesRef.current.find((n) => n.id === nodeId);
+      if (!node) return false;
+      fitView({ nodes: [{ id: nodeId }], padding: 0.4, duration: 300 });
+      return true;
+    },
     copyNode: (nodeId) => {
       const node = nodesRef.current.find((n) => n.id === nodeId);
       if (!node) return false;
@@ -751,7 +880,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       const copy = instantiateTemplateNode(src);
       const { w, h } = getNodeSize(src);
       copy.position = findFreePosition(nodesRef.current, w, h, src.position.x + 40, src.position.y + 40);
-      setNodes((nds) => [...nds, copy]);
+      setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), { ...copy, selected: true }]);
       onDirty?.();
       return true;
     },
@@ -762,7 +891,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       const copy = instantiateTemplateNode(node);
       const { w, h } = getNodeSize(node);
       copy.position = findFreePosition(nodesRef.current, w, h, node.position.x + 40, node.position.y + 40);
-      setNodes((nds) => [...nds, copy]);
+      setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), { ...copy, selected: true }]);
       onDirty?.();
       return true;
     },
@@ -929,7 +1058,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
           const copy = instantiateTemplateNode(node);
           const { w, h } = getNodeSize(node);
           copy.position = findFreePosition(nodesRef.current, w, h, node.position.x + 40, node.position.y + 40);
-          setNodes((nds) => [...nds, copy]);
+          setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), { ...copy, selected: true }]);
           onDirty?.();
         }}
       />
@@ -945,12 +1074,13 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
           clipboardRef.current = node;
           const copy = instantiateTemplateNode(node);
           copy.position = findFreePosition(nodesRef.current, NOTE_NODE_WIDTH, NOTE_NODE_HEIGHT, node.position.x + 40, node.position.y + 40);
-          setNodes((nds) => [...nds, copy]);
+          setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), { ...copy, selected: true }]);
           onDirty?.();
         }}
         onUpdateNote={onUpdateNote}
       />
     ),
+    shapeNode: (props) => <ShapeNode {...props} />,
     pinGateway: PinGatewayNode,
     propertyNode: (props) => (
       <PropertyNode
@@ -1070,7 +1200,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
           const w    = computeNodeWidth(copy.data.label);
           const h    = computeNodeHeight(copy.data.pinsIn ?? 1, copy.data.pinsOut ?? 1);
           copy.position = findFreePosition(nodesRef.current, w, h, src.position.x + 40, src.position.y + 40);
-          setNodes((nds) => [...nds, copy]);
+          setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), { ...copy, selected: true }]);
           onDirty?.();
         }
       }
