@@ -463,6 +463,7 @@ function ShapeNode({ id, data, selected }) {
     document.addEventListener('mouseup', onUp);
   }, [id, isCircle, getNode, getViewport, setNodes]);
 
+  const SW = 15;
   const HS = 10;
   const hBase = {
     position: 'absolute',
@@ -472,20 +473,26 @@ function ShapeNode({ id, data, selected }) {
     border: '1.5px solid #666',
     borderRadius: 2,
     zIndex: 10,
+    pointerEvents: 'all',
   };
 
   return (
     <div className="shape-node-root" style={{ width: w, height: h, position: 'relative' }}>
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          border: '15px solid var(--node-header-bg, #6ba7a6)',
-          borderRadius: isCircle ? '50%' : 0,
-          background: 'transparent',
-          boxSizing: 'border-box',
-        }}
-      />
+      <svg width={w} height={h} style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible' }}>
+        {isCircle ? (
+          <circle
+            cx={w / 2} cy={h / 2} r={Math.min(w, h) / 2 - SW / 2}
+            fill="none" strokeWidth={SW}
+            style={{ stroke: 'var(--node-header-bg, #6ba7a6)', pointerEvents: 'stroke', cursor: 'move' }}
+          />
+        ) : (
+          <rect
+            x={SW / 2} y={SW / 2} width={w - SW} height={h - SW}
+            fill="none" strokeWidth={SW}
+            style={{ stroke: 'var(--node-header-bg, #6ba7a6)', pointerEvents: 'stroke', cursor: 'move' }}
+          />
+        )}
+      </svg>
 
       {selected && !isCircle && (
         <>

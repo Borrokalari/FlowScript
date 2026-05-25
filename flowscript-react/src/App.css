@@ -1728,6 +1728,7 @@
   box-shadow: none !important;
   padding: 0 !important;
   overflow: visible !important;
+  pointer-events: none !important;
 }
 
 .shape-node-root {
