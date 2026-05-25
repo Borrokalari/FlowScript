@@ -29,10 +29,16 @@
       "PowerShell(Copy-Item \"d:\\\\FlowScript_Windows\\\\FlowScript_Logo.png\" \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\public\\\\FlowScript_Logo.png\")",
       "PowerShell(Copy-Item \"d:\\\\FlowScript_Windows\\\\FlowScript_Logo.png\" \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\public\\\\FlowScript_Logo.png\" -Force)",
       "PowerShell(Copy-Item \"d:\\\\FlowScript_Windows\\\\FlowScript_Logo.png\" \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\src\\\\FlowScript_Logo.png\" -Force)",
-      "PowerShell(Copy-Item \"d:\\\\FlowScript_Windows\\\\whats_new.md\" \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\public\\\\whats_new.md\" -Force)"
+      "PowerShell(Copy-Item \"d:\\\\FlowScript_Windows\\\\whats_new.md\" \"d:\\\\FlowScript_Windows\\\\flowscript-react\\\\public\\\\whats_new.md\" -Force)",
+      "PowerShell(Get-Process | Where-Object { $_.Name -match 'electron|FlowScript|node' } | Select-Object Id, Name, MainWindowTitle, CPU)",
+      "PowerShell(Get-Process | Select-Object Id, Name, MainWindowTitle | Where-Object { $_.MainWindowTitle -ne '' })",
+      "PowerShell(Get-Process)",
+      "Bash(tasklist)",
+      "Bash(rm -rf \"d:/FlowScript_Windows/flowscript-react/release/win-unpacked\" && echo \"deleted\")"
     ],
     "additionalDirectories": [
-      "d:\\FlowScript_Windows\\flowscript-react"
+      "d:\\FlowScript_Windows\\flowscript-react",
+      "d:\\FlowScript_Windows\\flowscript-react\\release\\win-unpacked"
     ]
   }
 }

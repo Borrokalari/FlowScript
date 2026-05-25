@@ -45,18 +45,49 @@ function deserializeFromFile(jsonStr) {
 
 const THEMES = {
   'FlowScript (Default)': {
-    nodeBodyBg:   '#6c757d',
-    nodeBorder:   '#555555',
-    nodeHeaderBg: '#6ba7a6',
-    nodeHandleBg: '#52d7c6',
-    nodeMenuBg:   '#f4a261',
+    nodeBodyBg:      '#6c757d',
+    nodeBorder:      '#555555',
+    nodeHeaderBg:    '#6ba7a6',
+    nodeHandleBg:    '#52d7c6',
+    nodeMenuBg:      '#f4a261',
+    pinGatewayBg:    '#3d7877',
+    pinGatewayBorder:'#52d7c6',
   },
   Shard: {
-    nodeBodyBg:   '#9E77ED',
-    nodeBorder:   '#555555',
-    nodeHeaderBg: '#5F35B2',
-    nodeHandleBg: '#52d7c6',
-    nodeMenuBg:   '#8FB2C7',
+    nodeBodyBg:      '#9E77ED',
+    nodeBorder:      '#555555',
+    nodeHeaderBg:    '#5F35B2',
+    nodeHandleBg:    '#52d7c6',
+    nodeMenuBg:      '#8FB2C7',
+    pinGatewayBg:    '#3d7877',
+    pinGatewayBorder:'#52d7c6',
+  },
+  FrameWalker: {
+    nodeBodyBg:      '#F8EFDF',
+    nodeBorder:      '#555555',
+    nodeHeaderBg:    '#3E5263',
+    nodeHandleBg:    '#C6C8B1',
+    nodeMenuBg:      '#F88E30',
+    pinGatewayBg:    'transparent',
+    pinGatewayBorder:'transparent',
+  },
+  Command: {
+    nodeBodyBg:      '#9DA6B5',
+    nodeBorder:      '#555555',
+    nodeHeaderBg:    '#363F4E',
+    nodeHandleBg:    '#D1D6DA',
+    nodeMenuBg:      '#B44A3F',
+    pinGatewayBg:    'transparent',
+    pinGatewayBorder:'transparent',
+  },
+  Outpost: {
+    nodeBodyBg:      '#DED7B5',
+    nodeBorder:      '#555555',
+    nodeHeaderBg:    '#62583D',
+    nodeHandleBg:    '#8E7F5C',
+    nodeMenuBg:      '#F3590A',
+    pinGatewayBg:    'transparent',
+    pinGatewayBorder:'transparent',
   },
 };
 
@@ -740,13 +771,15 @@ export default function App() {
   const livePrefs  = prefsDraft ?? prefs;
   const liveTheme  = THEMES[livePrefs.theme] ?? THEMES['FlowScript (Default)'];
   const cssVars = {
-    '--node-body-bg':       liveTheme.nodeBodyBg,
-    '--node-border-color':  liveTheme.nodeBorder,
-    '--node-header-bg':     liveTheme.nodeHeaderBg,
-    '--node-handle-bg':     liveTheme.nodeHandleBg,
-    '--node-menu-bg':       liveTheme.nodeMenuBg,
-    '--node-text-color':    livePrefs.nodeTextColor,
-    '--edge-stroke-width':  livePrefs.edgeThickness,
+    '--node-body-bg':        liveTheme.nodeBodyBg,
+    '--node-border-color':   liveTheme.nodeBorder,
+    '--node-header-bg':      liveTheme.nodeHeaderBg,
+    '--node-handle-bg':      liveTheme.nodeHandleBg,
+    '--node-menu-bg':        liveTheme.nodeMenuBg,
+    '--pin-gateway-bg':      liveTheme.pinGatewayBg,
+    '--pin-gateway-border':  liveTheme.pinGatewayBorder,
+    '--node-text-color':     livePrefs.nodeTextColor,
+    '--edge-stroke-width':   livePrefs.edgeThickness,
   };
 
   return (
@@ -897,8 +930,16 @@ export default function App() {
               <img src={flowscriptLogo} className="about-logo" alt="FlowScript" />
               <div className="about-info">
                 <div className="about-title">FlowScript {appVersion ? `v${appVersion}` : ''}</div>
-                <div className="about-line">Created by placeholder</div>
-                <div className="about-line">Stack placeholder</div>
+                <div className="about-code-block">
+                  <span className="about-comment">{'// ─────────────────────────────────────'}</span>
+                  <span className="about-comment">{'// Creator    : Pierre-Luc Gagnon'}</span>
+                  <span className="about-comment">{'// '}</span>
+                  <span className="about-comment">{'// Built with :'}</span>
+                  <span className="about-comment">{'//   React 19  ·  Vite 8'}</span>
+                  <span className="about-comment">{'//   ReactFlow 11  ·  Zustand 5'}</span>
+                  <span className="about-comment">{'//   Monaco Editor  ·  Electron 32'}</span>
+                  <span className="about-comment">{'// ─────────────────────────────────────'}</span>
+                </div>
               </div>
             </div>
           </div>

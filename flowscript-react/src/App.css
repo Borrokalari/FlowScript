@@ -455,6 +455,20 @@
   letter-spacing: 0.02em;
 }
 
+.about-code-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.about-comment {
+  font-size: 11px;
+  color: #6a9955;
+  letter-spacing: 0.02em;
+  white-space: pre;
+}
+
 /* ------------------------------
    TEMPLATES PANEL
    ------------------------------ */
@@ -989,8 +1003,8 @@
    ------------------------------ */
 
 .pin-gateway {
-  background: #3d7877;
-  border: 1px solid #52d7c6;
+  background: var(--pin-gateway-bg, #3d7877);
+  border: 1px solid var(--pin-gateway-border, #52d7c6);
   border-radius: 3px;
   padding: 4px 15px;
   font-family: 'JetBrains Mono', monospace;
