@@ -34,7 +34,9 @@
       "PowerShell(Get-Process | Select-Object Id, Name, MainWindowTitle | Where-Object { $_.MainWindowTitle -ne '' })",
       "PowerShell(Get-Process)",
       "Bash(tasklist)",
-      "Bash(rm -rf \"d:/FlowScript_Windows/flowscript-react/release/win-unpacked\" && echo \"deleted\")"
+      "Bash(rm -rf \"d:/FlowScript_Windows/flowscript-react/release/win-unpacked\" && echo \"deleted\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
       "d:\\FlowScript_Windows\\flowscript-react",
