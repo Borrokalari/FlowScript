@@ -277,6 +277,11 @@ function parseCommand(input) {
   m = t.match(/^saveTemplate\(([^)]*)\)$/i);
   if (m) return { command: 'saveTemplate', name: m[1].trim() };
 
+  m = t.match(/^copyNode\(([^)]*)\)$/i);
+  if (m) return { command: 'copyNode', name: m[1].trim() };
+
+  if (/^pasteLastNode$/i.test(t)) return { command: 'pasteLastNode' };
+
   m = t.match(/^deleteNode\(([^)]*)\)$/i);
   if (m) return { command: 'deleteNode', name: m[1].trim() };
 
@@ -313,6 +318,9 @@ function parseCommand(input) {
 export default function App() {
   const [mode, setMode]           = React.useState('graph');
   const [command, setCommand]     = React.useState('');
+  const [cmdHistory, setCmdHistory] = React.useState([]);
+  const [historyIdx, setHistoryIdx] = React.useState(-1);
+  const [draftCmd,   setDraftCmd]   = React.useState('');
   const [dslText, setDslText]     = React.useState('');
   const [showHelp, setShowHelp]   = React.useState(false);
   const [fileName, setFileName]   = React.useState(null);
@@ -328,7 +336,9 @@ export default function App() {
   const [showTemplates, setShowTemplates]   = React.useState(false);
   const [pendingTemplateNode, setPendingTemplateNode] = React.useState(null);
   const [templateDraftName, setTemplateDraftName]     = React.useState('');
-  const canvasRef = React.useRef(null);
+  const canvasRef       = React.useRef(null);
+  const flowbarInputRef = React.useRef(null);
+  const cursorPosRef    = React.useRef(null);
 
   const [navStack, setNavStack] = React.useState([
     { levelId: null, nodes: [], edges: [] },
@@ -364,6 +374,13 @@ export default function App() {
       }
     });
   }, []);
+
+  React.useEffect(() => {
+    if (cursorPosRef.current !== null && flowbarInputRef.current) {
+      flowbarInputRef.current.setSelectionRange(cursorPosRef.current, cursorPosRef.current);
+      cursorPosRef.current = null;
+    }
+  }, [command]);
 
   const handleModeChange = React.useCallback((newMode) => {
     if (newMode === mode) return;
@@ -583,6 +600,9 @@ export default function App() {
   const handleCommandSubmit = React.useCallback(() => {
     const trimmed = command.trim();
     if (!trimmed) return;
+    setCmdHistory((prev) => [trimmed, ...prev.filter((h) => h !== trimmed)].slice(0, 50));
+    setHistoryIdx(-1);
+    setDraftCmd('');
     const cmd = parseCommand(trimmed);
     if (cmd) {
       if (cmd.command === 'showHelp') {
@@ -593,6 +613,13 @@ export default function App() {
         const live = canvasRef.current?.getState();
         const node = live?.nodes.find((n) => n.type === 'flowNode' && n.data?.label === cmd.name);
         if (node) handleSaveAsTemplate(node);
+      } else if (cmd.command === 'copyNode') {
+        const live = canvasRef.current?.getState();
+        const node = live?.nodes.find((n) => n.type === 'flowNode' && n.data?.label === cmd.name);
+        if (node) canvasRef.current?.copyNode(node.id);
+      } else if (cmd.command === 'pasteLastNode') {
+        const pasted = canvasRef.current?.pasteNode();
+        if (pasted) setIsDirty(true);
       } else if (cmd.command === 'addNode') {
         canvasRef.current?.addNode({ label: cmd.label, nodeType: cmd.nodeType, icon: cmd.icon, pinsIn: cmd.pinsIn, pinsOut: cmd.pinsOut });
       } else {
@@ -601,6 +628,40 @@ export default function App() {
     }
     setCommand('');
   }, [command]);
+
+  const handleFlowBarKeyDown = React.useCallback((e) => {
+    if (e.key === 'Enter') { handleCommandSubmit(); return; }
+
+    if (e.key === '(') {
+      e.preventDefault();
+      const pos = e.target.selectionStart;
+      setCommand((prev) => prev.slice(0, pos) + '()' + prev.slice(pos));
+      cursorPosRef.current = pos + 1;
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (cmdHistory.length === 0) return;
+      if (historyIdx === -1) setDraftCmd(command);
+      const newIdx = Math.min(historyIdx + 1, cmdHistory.length - 1);
+      setHistoryIdx(newIdx);
+      const entry = cmdHistory[newIdx];
+      setCommand(entry);
+      cursorPosRef.current = entry.length;
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIdx === -1) return;
+      const newIdx = historyIdx - 1;
+      setHistoryIdx(newIdx);
+      const entry = newIdx === -1 ? draftCmd : cmdHistory[newIdx];
+      setCommand(entry);
+      cursorPosRef.current = entry.length;
+    }
+  }, [handleCommandSubmit, command, cmdHistory, historyIdx, draftCmd]);
 
   const handleEnterNode = React.useCallback((nodeId, currentNodes, currentEdges) => {
     const entered     = currentNodes.find((n) => n.id === nodeId);
@@ -615,16 +676,16 @@ export default function App() {
       id:         `__gateway_in_${i}`,
       type:       'pinGateway',
       position:   { x: 20, y: 60 + 80 * i },
-      draggable:  false,
-      selectable: false,
+      draggable:  true,
+      selectable: true,
       data:       { side: 'in', label: pinInNames[i] || '' },
     }));
     const outGateways = Array.from({ length: pinsOut }, (_, i) => ({
       id:         `__gateway_out_${i}`,
       type:       'pinGateway',
       position:   { x: 860, y: 60 + 80 * i },
-      draggable:  false,
-      selectable: false,
+      draggable:  true,
+      selectable: true,
       data:       { side: 'out', label: pinOutNames[i] || '' },
     }));
 
@@ -724,10 +785,11 @@ export default function App() {
         <div className={`flowbar-command${mode === 'code' ? ' flowbar-command--hidden' : ''}`}>
           <input
             className="flowbar-input"
+            ref={flowbarInputRef}
             placeholder="Type a flow command..."
             value={command}
             onChange={(e) => setCommand(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleCommandSubmit(); }}
+            onKeyDown={handleFlowBarKeyDown}
           />
           <button className="flowbar-submit" onClick={handleCommandSubmit}>&#9658;</button>
         </div>
@@ -917,6 +979,8 @@ export default function App() {
                 <tr><td><code>renameNode(name) : new name</code></td><td>Rename a node</td></tr>
                 <tr><td><code>graph.zoomall</code></td><td>Zoom to fit all nodes in view</td></tr>
                 <tr><td><code>saveTemplate(name)</code></td><td>Save node by name as a template</td></tr>
+                <tr><td><code>copyNode(name)</code></td><td>Copy a node by name to clipboard</td></tr>
+                <tr><td><code>pasteLastNode</code></td><td>Paste the last copied node</td></tr>
                 <tr><td><code>showHelp</code></td><td>Show this window</td></tr>
               </tbody>
             </table>

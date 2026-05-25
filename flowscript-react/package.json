@@ -1,7 +1,9 @@
 {
   "name": "flowscript-react",
+  "description": "FlowScript - Visual Programming Tool",
+  "author": "FlowScript",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -14,6 +16,7 @@
   "build": {
     "appId": "com.flowscript.app",
     "productName": "FlowScript",
+    "icon": "public/FlowScript_Logo.png",
     "files": [
       "dist/**/*",
       "dist-electron/**/*"

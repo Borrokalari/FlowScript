@@ -918,6 +918,11 @@
   position: relative;
 }
 
+.react-flow__node.selected .flow-node {
+  outline: 3px solid var(--node-handle-bg, #52d7c6);
+  outline-offset: 0px;
+}
+
 .flow-node-header {
   display: flex;
   justify-content: space-between;

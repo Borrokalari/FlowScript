@@ -125,7 +125,7 @@ function findFreePosition(existingNodes, newW, newH, startX, startY) {
 
 // ─── FlowNode ────────────────────────────────────────────────────────────────
 
-function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate }) {
+function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate, onDuplicateNode }) {
   const [menuOpen,   setMenuOpen]   = React.useState(false);
   const [editingPin, setEditingPin] = React.useState(null);
   const menuRef = React.useRef(null);
@@ -188,6 +188,13 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
                 onClick={() => { onAddPins(id); setMenuOpen(false); }}
               >
                 Add Pins
+              </button>
+              <button
+                className="flow-node-dropdown-item"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => { onDuplicateNode(id); setMenuOpen(false); }}
+              >
+                Duplicate Node
               </button>
               <button
                 className="flow-node-dropdown-item"
@@ -565,6 +572,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
   const [nodes, setNodes] = useNodesState(initialNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
   const { screenToFlowPosition, fitView } = useReactFlow();
+  const clipboardRef = React.useRef(null);
   const [editingNode, setEditingNode] = React.useState(null);
 
   const nodesRef = React.useRef(nodes);
@@ -588,6 +596,35 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       edges: edgesRef.current,
     }),
     fitView: () => fitView({ padding: 0.15, duration: 300 }),
+    copyNode: (nodeId) => {
+      const node = nodesRef.current.find((n) => n.id === nodeId);
+      if (!node) return false;
+      clipboardRef.current = node;
+      return true;
+    },
+    pasteNode: () => {
+      const src = clipboardRef.current;
+      if (!src) return false;
+      const copy = instantiateTemplateNode(src);
+      const w    = computeNodeWidth(copy.data.label);
+      const h    = computeNodeHeight(copy.data.pinsIn ?? 1, copy.data.pinsOut ?? 1);
+      copy.position = findFreePosition(nodesRef.current, w, h, src.position.x + 40, src.position.y + 40);
+      setNodes((nds) => [...nds, copy]);
+      onDirty?.();
+      return true;
+    },
+    duplicateNode: (nodeId) => {
+      const node = nodesRef.current.find((n) => n.id === nodeId);
+      if (!node) return false;
+      clipboardRef.current = node;
+      const copy = instantiateTemplateNode(node);
+      const w    = computeNodeWidth(copy.data.label);
+      const h    = computeNodeHeight(copy.data.pinsIn ?? 1, copy.data.pinsOut ?? 1);
+      copy.position = findFreePosition(nodesRef.current, w, h, node.position.x + 40, node.position.y + 40);
+      setNodes((nds) => [...nds, copy]);
+      onDirty?.();
+      return true;
+    },
     addFromTemplate: (templateNode) => {
       const node     = instantiateTemplateNode(templateNode);
       const center   = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
@@ -739,6 +776,17 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
           const node = nodesRef.current.find((n) => n.id === nodeId);
           if (node) onSaveAsTemplate?.(node);
         }}
+        onDuplicateNode={(nodeId) => {
+          const node = nodesRef.current.find((n) => n.id === nodeId);
+          if (!node) return;
+          clipboardRef.current = node;
+          const copy = instantiateTemplateNode(node);
+          const w    = computeNodeWidth(copy.data.label);
+          const h    = computeNodeHeight(copy.data.pinsIn ?? 1, copy.data.pinsOut ?? 1);
+          copy.position = findFreePosition(nodesRef.current, w, h, node.position.x + 40, node.position.y + 40);
+          setNodes((nds) => [...nds, copy]);
+          onDirty?.();
+        }}
       />
     ),
     pinGateway: PinGatewayNode,
@@ -814,13 +862,44 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
 
   React.useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      const tag = document.activeElement?.tagName;
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
+
+      if (!isInput && (e.key === 'Delete' || e.key === 'Backspace')) {
+        const deletedIds = new Set(
+          nodesRef.current
+            .filter((n) => n.selected && !n.id.startsWith('__gateway_'))
+            .map((n) => n.id)
+        );
+        if (deletedIds.size > 0) {
+          setNodes((nds) => nds.filter((n) => !deletedIds.has(n.id)));
+          setEdges((eds) => eds.filter((edge) => !deletedIds.has(edge.source) && !deletedIds.has(edge.target)));
+          onDirty?.();
+        }
         setEdges((eds) => eds.filter((edge) => !edge.selected));
+      }
+
+      if (!isInput && e.ctrlKey && e.key === 'c') {
+        const selected = nodesRef.current.find((n) => n.type === 'flowNode' && n.selected);
+        if (selected) { clipboardRef.current = selected; e.preventDefault(); }
+      }
+
+      if (!isInput && e.ctrlKey && e.key === 'v') {
+        const src = clipboardRef.current;
+        if (src) {
+          e.preventDefault();
+          const copy = instantiateTemplateNode(src);
+          const w    = computeNodeWidth(copy.data.label);
+          const h    = computeNodeHeight(copy.data.pinsIn ?? 1, copy.data.pinsOut ?? 1);
+          copy.position = findFreePosition(nodesRef.current, w, h, src.position.x + 40, src.position.y + 40);
+          setNodes((nds) => [...nds, copy]);
+          onDirty?.();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setEdges]);
+  }, [setEdges, setNodes, onDirty]);
 
   const DIRTY_NODE_TYPES = new Set(['add', 'remove', 'reset', 'position']);
   const DIRTY_EDGE_TYPES = new Set(['add', 'remove', 'reset']);
@@ -849,6 +928,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         nodesDraggable={true}
         elementsSelectable={true}
         connectionMode="loose"
+        deleteKeyCode={null}
         defaultEdgeOptions={{ type: 'default' }}
         onNodesChange={onNodesChangeWrapped}
         onEdgesChange={onEdgesChangeWrapped}
