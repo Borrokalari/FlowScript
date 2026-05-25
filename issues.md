@@ -19,6 +19,7 @@ This document tracks bugs, polish items, and future ideas discovered while using
 - [ ] Weird bug with edges. might be because legacy save?
 - [x] Sometimes the open recent menu doesn't open
 - [x] graph.zoomall not consistent: should be: zoom(node name or all)
+- [x] Shapes background means you can't click through
 
 ---
 
