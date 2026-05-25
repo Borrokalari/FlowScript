@@ -648,7 +648,7 @@ export default function App() {
       theme: prefs.theme === themeName ? 'FlowScript (Default)' : prefs.theme,
     };
     setPrefs(updated);
-    if (prefsDraft) setPrefsDraft((d) => ({ ...d, theme: updated.theme }));
+    if (prefsDraft) setPrefsDraft((d) => ({ ...d, theme: updated.theme, userThemes: updatedUserThemes }));
     await window.electronAPI?.savePreferences(updated);
     setDeleteConfirmTheme(null);
   }, [prefs, prefsDraft]);
