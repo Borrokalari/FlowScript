@@ -14,21 +14,34 @@ This document tracks bugs, polish items, and future ideas discovered while using
 ## Bugs
 (Things that are broken, inconsistent, or not behaving as intended.)
 
-- [x] Windows icon missing (default electron)
-- [x] The now transparent teal element should be the same color as the pins; causing a bug inside groups
 - [ ] Weird bug with edges. might be because legacy save?
-- [x] Sometimes the open recent menu doesn't open
-- [x] graph.zoomall not consistent: should be: zoom(node name or all)
-- [x] Shapes background means you can't click through
-- [x] Shapes are deleted when switching from GRAPH to CODE and back
-- [x] User created themes not deleted
+- [ ] Gateway node position not saved
 
 ---
 
 ## Improvements
 (Small UX tweaks, polish, or quality-of-life upgrades.)
 
-- [ ] File -> New -> Frame Walker file (.frame)
+- [ ] Free Trial / License key stuff
+
+---
+
+## Ideas / Future
+(Explorations, nice-to-haves, or potential features for later versions.)
+
+- [ ] Custom nodes: create entirely new node types
+- [ ] Undo/Redo?
+
+---
+
+## Completed
+- [x] Sometimes the open recent menu doesn't open
+- [x] graph.zoomall not consistent: should be: zoom(node name or all)
+- [x] Shapes background means you can't click through
+- [x] Shapes are deleted when switching from GRAPH to CODE and back
+- [x] User created themes not deleted
+- [x] Windows icon missing (default electron)
+- [x] The now transparent teal element should be the same color as the pins; causing a bug inside groups
 - [x] Go into a node and a new button appears: +Property. Special node with no pins, name, type, opt constraints then visual feedback on parent node
 - [x] Copy/Paste Node (via FlowCommand, context menu, shortcut)
 - [x] Up arrow key shows last command
@@ -40,20 +53,11 @@ This document tracks bugs, polish items, and future ideas discovered while using
 - [x] Notes should have a different background color
 - [x] When pasting a node, it should only select the pasted node and not the one you had selected previously
 - [x] addShape(Rectangle)
-
----
-
-## Ideas / Future
-(Explorations, nice-to-haves, or potential features for later versions.)
-
-- [ ] Custom nodes: create entirely new node types
 - [x] Node Templates; save a node and what's in it (group or properties) to be picked from a palette and reused
 - [x] Auto close parentheses when adding one just like Typora
 - [x] Create Themes directly in FlowScript: FlowBar command pops the modal. newTheme(name)
 - [x] FlowBar command: cookNode(name) "cooks" the node by darkening their colors until almost black. Any action on it restores it (easter egg)
 - [x] Found a bug type of modal window for users that find issues
-
----
-
-## Completed
-- [x] No known completed
+- [x] File -> New -> Frame Walker file (.frame)
+- [x] Rename New FlowScript to New .flowscript
+- [x] Rename New Frame to New .frame

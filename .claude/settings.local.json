@@ -36,7 +36,8 @@
       "Bash(tasklist)",
       "Bash(rm -rf \"d:/FlowScript_Windows/flowscript-react/release/win-unpacked\" && echo \"deleted\")",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\theca\\\\.claude\\\\projects\\\\d--FlowScript-Windows\\\\ae096122-7a09-4256-b652-9b0ac21c0719.jsonl' | Select-String -Pattern 'frame|palette|locked|node name' -SimpleMatch | Select-Object -Last 30\")"
     ],
     "additionalDirectories": [
       "d:\\FlowScript_Windows\\flowscript-react",
