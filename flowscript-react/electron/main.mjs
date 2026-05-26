@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 
 const isDev = !app.isPackaged;
@@ -140,11 +140,14 @@ function commitSave(e, filePath, content) {
   return { success: true, filePath, fileName: filePath.split(/[\\/]/).pop() };
 }
 
-async function showSaveDialog(e, content) {
+async function showSaveDialog(e, content, fileType = 'flowscript') {
+  const isFrame = fileType === 'frame';
   const result = await dialog.showSaveDialog(winFrom(e), {
-    title: 'Save FlowScript File',
-    defaultPath: getFilePath(e) ?? 'Untitled.flowscript',
-    filters: [{ name: 'FlowScript Files', extensions: ['flowscript'] }],
+    title:       isFrame ? 'Save Frame Walker File' : 'Save FlowScript File',
+    defaultPath: getFilePath(e) ?? (isFrame ? 'Untitled.frame' : 'Untitled.flowscript'),
+    filters:     isFrame
+      ? [{ name: 'Frame Walker Files', extensions: ['frame'] }]
+      : [{ name: 'FlowScript Files',   extensions: ['flowscript'] }],
   });
   if (result.canceled || !result.filePath) return { success: false };
   return commitSave(e, result.filePath, content);
@@ -156,12 +159,18 @@ ipcMain.handle('file:new', (e) => {
   return { success: true };
 });
 
+ipcMain.handle('file:newFrame', (e) => {
+  setFilePath(e, null);
+  return { success: true };
+});
+
 ipcMain.handle('file:open', async (e) => {
   const result = await dialog.showOpenDialog(winFrom(e), {
     title: 'Open File',
     filters: [
-      { name: 'All Supported', extensions: ['flowscript', 'txt', 'md'] },
+      { name: 'All Supported', extensions: ['flowscript', 'frame', 'txt', 'md'] },
       { name: 'FlowScript Files', extensions: ['flowscript'] },
+      { name: 'Frame Walker Files', extensions: ['frame'] },
       { name: 'Text Files', extensions: ['txt', 'md'] },
     ],
     properties: ['openFile'],
@@ -170,7 +179,7 @@ ipcMain.handle('file:open', async (e) => {
   const fp = result.filePaths[0];
   const content = readFileSync(fp, 'utf-8');
   const ext = fp.split('.').pop().toLowerCase();
-  if (ext === 'flowscript') { setFilePath(e, fp); addToRecent(fp); }
+  if (ext === 'flowscript' || ext === 'frame') { setFilePath(e, fp); addToRecent(fp); }
   return { success: true, content, filePath: fp, fileName: fp.split(/[\\/]/).pop() };
 });
 
@@ -194,11 +203,11 @@ ipcMain.handle('file:saveTextAs', async (e, content) => {
   return commitSave(e, result.filePath, content);
 });
 
-ipcMain.handle('file:save',   async (e, content) => {
+ipcMain.handle('file:save',   async (e, content, fileType) => {
   const fp = getFilePath(e);
-  return fp ? commitSave(e, fp, content) : showSaveDialog(e, content);
+  return fp ? commitSave(e, fp, content) : showSaveDialog(e, content, fileType);
 });
-ipcMain.handle('file:saveAs', async (e, content) => showSaveDialog(e, content));
+ipcMain.handle('file:saveAs', async (e, content, fileType) => showSaveDialog(e, content, fileType));
 
 // ── App / tutorial IPC ────────────────────────────────────────────────────────
 ipcMain.handle('app:getInitialState', (e) => {
@@ -276,6 +285,14 @@ ipcMain.handle('tutorial:openNewWindow', () => {
 });
 
 ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url));
+
+ipcMain.handle('app:isDevMode', () => {
+  const candidates = [
+    join(app.getAppPath(), 'fsdev.dll'),
+    join(dirname(process.execPath), 'fsdev.dll'),
+  ];
+  return candidates.some(existsSync);
+});
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(() => {

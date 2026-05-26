@@ -78,11 +78,168 @@ function computeNodeHeight(pinsIn, pinsOut) {
 
 const NOTE_NODE_WIDTH  = 200;
 const NOTE_NODE_HEIGHT = 130;
+const FW_NODE_WIDTH    = 370;
+const FW_NODE_HEIGHT   = 245;
+
+// ─── Frame Walker palette nodes ───────────────────────────────────────────────
+
+const FRAME_NODES = [
+  'Group',
+  'EngineBlock', 'Battery', 'MechanicalPump', 'AirFilter', 'AirBreather',
+  'Leg Actuator', 'Inventory Container', 'Capacitor Bank', 'Heat Sink', 'Radiator',
+  'Thermal Buffer', 'Shield Capacitor', 'Point Defense Turret', 'Chaff Dispenser',
+  'Hydraulic Booster', 'Gyro Stabilizer', 'Radar Array', 'Thermal Sensor',
+  'LIDAR Scanner', 'Navigation Core', 'Comms Transceiver', 'Repair Nanoforge',
+  'Anchor Spike', 'Subsystem Overdrive', 'Reinforced Spine', 'Shock Frame',
+  'Vernier Boosters', 'Mini Nuclear Power Plant', 'Oxygen Generator',
+  'Recoil Dampener', 'Targeting Module', 'Weapon Cooling Jacket',
+  'Charge Regulator', 'RailGun Core', 'HeavyRifle Core', 'AutomaticRifle Core',
+  'LaserBeam Core', 'LaserPulse Core', 'MissileSingle Core', 'MissileBarrage Core',
+  'PulseCutter Core', 'Power Distributor',
+];
+
+const FW_TYPE_COLORS = {
+  Power:      '#c0392b',
+  Mechanical: '#2471a3',
+  Thermal:    '#1e8449',
+  Fluid:      '#17a589',
+  Sensor:     '#b7950b',
+  Defense:    '#7d3c98',
+  Weapon:     '#d35400',
+  Utility:    '#6d4c41',
+};
+
+const FW_NODE_TYPE_MAP = {
+  // Power
+  'Battery': 'Power', 'Capacitor Bank': 'Power', 'Shield Capacitor': 'Power',
+  'Mini Nuclear Power Plant': 'Power', 'Charge Regulator': 'Power', 'Power Distributor': 'Power',
+  // Mechanical
+  'EngineBlock': 'Mechanical', 'Leg Actuator': 'Mechanical', 'Hydraulic Booster': 'Mechanical',
+  'Gyro Stabilizer': 'Mechanical', 'Recoil Dampener': 'Mechanical', 'Vernier Boosters': 'Mechanical',
+  'Shock Frame': 'Mechanical', 'Reinforced Spine': 'Mechanical',
+  // Thermal
+  'Heat Sink': 'Thermal', 'Radiator': 'Thermal', 'Thermal Buffer': 'Thermal',
+  'Weapon Cooling Jacket': 'Thermal',
+  // Fluid
+  'MechanicalPump': 'Fluid', 'AirFilter': 'Fluid', 'AirBreather': 'Fluid',
+  'Oxygen Generator': 'Fluid',
+  // Sensor
+  'Radar Array': 'Sensor', 'Thermal Sensor': 'Sensor', 'LIDAR Scanner': 'Sensor',
+  'Navigation Core': 'Sensor', 'Comms Transceiver': 'Sensor', 'Targeting Module': 'Sensor',
+  // Defense
+  'Point Defense Turret': 'Defense', 'Chaff Dispenser': 'Defense',
+  'Anchor Spike': 'Defense', 'Subsystem Overdrive': 'Defense',
+  // Weapon
+  'RailGun Core': 'Weapon', 'HeavyRifle Core': 'Weapon', 'AutomaticRifle Core': 'Weapon',
+  'LaserBeam Core': 'Weapon', 'LaserPulse Core': 'Weapon', 'MissileSingle Core': 'Weapon',
+  'MissileBarrage Core': 'Weapon',
+  // Utility
+  'Inventory Container': 'Utility', 'Repair Nanoforge': 'Utility', 'PulseCutter Core': 'Utility',
+};
+
+const FW_MODIFIER_DISPLAY = {
+  thermalModifier:     'Thermal Mod:',
+  powerLoadModifier:   'PwrLoad Mod:',
+  atmosphericModifier: 'Atm. Mod:',
+  signalModifier:      'Signal Mod:',
+};
+
+const FW_NODE_MODIFIER_MAP = {
+  // thermalModifier  (0.8)
+  'Shield Capacitor':         { name: 'thermalModifier',     defaultValue: 0.8 },
+  'Mini Nuclear Power Plant': { name: 'thermalModifier',     defaultValue: 0.8 },
+  'EngineBlock':              { name: 'thermalModifier',     defaultValue: 0.8 },
+  'Vernier Boosters':         { name: 'thermalModifier',     defaultValue: 0.8 },
+  'Heat Sink':                { name: 'thermalModifier',     defaultValue: 0.8 },
+  'Radiator':                 { name: 'thermalModifier',     defaultValue: 0.8 },
+  'Thermal Buffer':           { name: 'thermalModifier',     defaultValue: 0.8 },
+  'Weapon Cooling Jacket':    { name: 'thermalModifier',     defaultValue: 0.8 },
+  'MechanicalPump':           { name: 'thermalModifier',     defaultValue: 0.8 },
+  'Thermal Sensor':           { name: 'thermalModifier',     defaultValue: 0.8 },
+  'Targeting Module':         { name: 'thermalModifier',     defaultValue: 0.8 },
+  'RailGun Core':             { name: 'thermalModifier',     defaultValue: 0.8 },
+  'LaserBeam Core':           { name: 'thermalModifier',     defaultValue: 0.8 },
+  'LaserPulse Core':          { name: 'thermalModifier',     defaultValue: 0.8 },
+  'PulseCutter Core':         { name: 'thermalModifier',     defaultValue: 0.8 },
+  // powerLoadModifier (0.9)
+  'Capacitor Bank':           { name: 'powerLoadModifier',   defaultValue: 0.9 },
+  'Charge Regulator':         { name: 'powerLoadModifier',   defaultValue: 0.9 },
+  'Power Distributor':        { name: 'powerLoadModifier',   defaultValue: 0.9 },
+  'Leg Actuator':             { name: 'powerLoadModifier',   defaultValue: 0.9 },
+  'Subsystem Overdrive':      { name: 'powerLoadModifier',   defaultValue: 0.9 },
+  // atmosphericModifier (0.7)
+  'AirBreather':              { name: 'atmosphericModifier', defaultValue: 0.7 },
+  // signalModifier (0.9)
+  'Radar Array':              { name: 'signalModifier',      defaultValue: 0.9 },
+  'Navigation Core':          { name: 'signalModifier',      defaultValue: 0.9 },
+  'Comms Transceiver':        { name: 'signalModifier',      defaultValue: 0.9 },
+};
+
+function FramePalette({ onAdd }) {
+  const [open, setOpen]   = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const wrapRef           = React.useRef(null);
+
+  const filtered = query.trim()
+    ? FRAME_NODES.filter((n) => n.toLowerCase().includes(query.toLowerCase()))
+    : FRAME_NODES;
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div className="fp-wrap nodrag" ref={wrapRef}>
+      <button
+        className="toolbar-btn fp-btn"
+        onClick={() => { setOpen((v) => !v); setQuery(''); }}
+      >
+        + Node ▾
+      </button>
+      {open && (
+        <div className="fp-panel">
+          <div className="fp-panel-header">Select Node</div>
+          <input
+            className="fp-search"
+            placeholder="Search…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+          <div className="fp-grid">
+            {filtered.length === 0
+              ? <div className="fp-empty">No results</div>
+              : filtered.map((name) => {
+                  const typeColor = FW_TYPE_COLORS[FW_NODE_TYPE_MAP[name]];
+                  return (
+                    <button
+                      key={name}
+                      className="fp-item"
+                      style={typeColor ? { '--fw-type-color': typeColor } : undefined}
+                      onClick={() => { onAdd(name); setOpen(false); setQuery(''); }}
+                    >
+                      {name}
+                    </button>
+                  );
+                })
+            }
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function getNodeSize(node) {
-  if (node.type === 'noteNode')     return { w: NOTE_NODE_WIDTH,  h: NOTE_NODE_HEIGHT };
-  if (node.type === 'propertyNode') return { w: 215, h: 120 };
-  if (node.type === 'shapeNode')    return { w: node.data?.shapeWidth ?? 200, h: node.data?.shapeHeight ?? 200 };
+  if (node.type === 'noteNode')        return { w: NOTE_NODE_WIDTH,  h: NOTE_NODE_HEIGHT };
+  if (node.type === 'propertyNode')    return { w: 215, h: 120 };
+  if (node.type === 'shapeNode')       return { w: node.data?.shapeWidth ?? 200, h: node.data?.shapeHeight ?? 200 };
+  if (node.data?.locked && node.data.nodeType !== 'group') return { w: FW_NODE_WIDTH, h: FW_NODE_HEIGHT };
   return {
     w: computeNodeWidth(node.data?.label ?? ''),
     h: computeNodeHeight(node.data?.pinsIn ?? 1, node.data?.pinsOut ?? 1),
@@ -135,18 +292,180 @@ function findFreePosition(existingNodes, newW, newH, startX, startY) {
   return { x: startX, y: startY };
 }
 
+// ─── FrameNodeBody ───────────────────────────────────────────────────────────
+
+const FW_BASE_RATE = 5;
+
+function FrameNodeBody({ id, data, onUpdateNodeData, isDevMode }) {
+  const active         = data.fwActive         ?? true;
+  const efficiency     = data.fwEfficiency     ?? 100;
+  const health         = data.fwHealth         ?? 100;
+  const inputFactor    = data.fwInputFactor    ?? 1.0;
+  const baseRate       = data.fwBaseRate       ?? FW_BASE_RATE;
+  const modifierValue  = data.fwModifierValue  ?? 1.0;
+
+  const efficiencyMultiplier = efficiency / 100;
+  const damageMultiplier     = health / 100;
+  const activeMultiplier     = active ? 1 : 0;
+
+  const outputRate = baseRate * efficiencyMultiplier * damageMultiplier * activeMultiplier * modifierValue;
+  const inputRate  = outputRate * inputFactor;
+
+  const handleFactorChange = (e) => {
+    const val = parseFloat(e.target.value);
+    if (!isNaN(val)) onUpdateNodeData(id, { fwInputFactor: Math.min(1, Math.max(0, val)) });
+  };
+
+  const handleHealthChange = (e) => {
+    const val = parseInt(e.target.value, 10);
+    if (!isNaN(val)) onUpdateNodeData(id, { fwHealth: Math.min(100, Math.max(0, val)) });
+  };
+
+  const handleBaseRateChange = (e) => {
+    const val = parseFloat(e.target.value);
+    if (!isNaN(val) && val >= 0) onUpdateNodeData(id, { fwBaseRate: val });
+  };
+
+  const handleModifierChange = (e) => {
+    const val = parseFloat(e.target.value);
+    if (!isNaN(val) && val >= 0) onUpdateNodeData(id, { fwModifierValue: val });
+  };
+
+  return (
+    <div className="fw-node-body nodrag" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="fw-props-header">
+        {data.label} Properties
+        {data.fwNodeType && (
+          <span
+            className="fw-type-badge"
+            style={{ '--fw-type-color': FW_TYPE_COLORS[data.fwNodeType] }}
+          >
+            {data.fwNodeType}
+          </span>
+        )}
+        {isDevMode && <span className="fw-dev-badge">DEV</span>}
+      </div>
+      <div className="fw-props-content">
+        <div className="fw-props-left">
+          <div className="fw-prop-row">
+            <span className="fw-prop-label">Active?</span>
+            <input
+              type="checkbox"
+              className="fw-prop-checkbox"
+              checked={active}
+              onChange={(e) => onUpdateNodeData(id, { fwActive: e.target.checked })}
+            />
+          </div>
+          <div className="fw-prop-row fw-prop-row--slider">
+            <span className="fw-prop-label">Efficiency:</span>
+            <div className="fw-prop-slider-wrap">
+              <input
+                type="range"
+                className="fw-prop-slider"
+                min={0}
+                max={200}
+                value={efficiency}
+                onChange={(e) => onUpdateNodeData(id, { fwEfficiency: Number(e.target.value) })}
+              />
+              <span className="fw-prop-slider-val">{efficiency}%</span>
+            </div>
+          </div>
+          {isDevMode && (
+            <div className="fw-prop-row">
+              <span className="fw-prop-label">In. Factor:</span>
+              <input
+                type="number"
+                className="fw-prop-text-input fw-prop-factor-input"
+                value={inputFactor}
+                min={0}
+                max={1}
+                step={0.1}
+                onChange={handleFactorChange}
+              />
+              <span className="fw-prop-factor-hint">≤ 1.0</span>
+            </div>
+          )}
+          {isDevMode && (
+            <div className="fw-prop-row">
+              <span className="fw-prop-label">Base Rate:</span>
+              <input
+                type="number"
+                className="fw-prop-text-input fw-prop-factor-input"
+                value={baseRate}
+                min={0}
+                step={0.5}
+                onChange={handleBaseRateChange}
+              />
+              <span className="fw-prop-factor-hint">u/s</span>
+            </div>
+          )}
+        </div>
+        <div className="fw-props-divider" />
+        <div className="fw-props-right">
+          <div className="fw-prop-row">
+            <span className="fw-prop-label">Health:</span>
+            {isDevMode ? (
+              <input
+                type="number"
+                className="fw-prop-text-input fw-prop-factor-input"
+                value={health}
+                min={0}
+                max={100}
+                step={1}
+                onChange={handleHealthChange}
+              />
+            ) : (
+              <input
+                type="text"
+                className="fw-prop-text-input"
+                value={`${health}%`}
+                readOnly
+                disabled
+              />
+            )}
+          </div>
+          {isDevMode && data.fwModifierName && (
+            <div className="fw-prop-row">
+              <span className="fw-prop-label">{FW_MODIFIER_DISPLAY[data.fwModifierName]}</span>
+              <input
+                type="number"
+                className="fw-prop-text-input fw-prop-factor-input"
+                value={modifierValue}
+                min={0}
+                max={2}
+                step={0.05}
+                onChange={handleModifierChange}
+              />
+            </div>
+          )}
+          <div className="fw-prop-row">
+            <span className="fw-prop-label">Input Rate:</span>
+            <span className="fw-prop-value">{inputRate.toFixed(2)} u/s</span>
+          </div>
+          <div className="fw-prop-row">
+            <span className="fw-prop-label">Output Rate:</span>
+            <span className="fw-prop-value">{outputRate.toFixed(2)} u/s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── FlowNode ────────────────────────────────────────────────────────────────
 
-function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate, onDuplicateNode }) {
+function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate, onDuplicateNode, onUpdateNodeData, isDevMode }) {
   const [menuOpen,   setMenuOpen]   = React.useState(false);
   const [editingPin, setEditingPin] = React.useState(null);
   const menuRef = React.useRef(null);
   const updateNodeInternals = useUpdateNodeInternals();
 
+  const isLocked          = !!data.locked;
+  const isLockedComponent = isLocked && data.nodeType !== 'group';
   const pinsIn  = data.pinsIn  ?? 1;
   const pinsOut = data.pinsOut ?? 1;
-  const height  = computeNodeHeight(pinsIn, pinsOut);
-  const width   = computeNodeWidth(data.label);
+  const height  = isLockedComponent ? FW_NODE_HEIGHT : computeNodeHeight(pinsIn, pinsOut);
+  const width   = isLockedComponent ? FW_NODE_WIDTH  : computeNodeWidth(data.label);
 
   const savePinName = () => {
     if (!editingPin) return;
@@ -168,10 +487,19 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
   }, [menuOpen]);
 
   return (
-    <div className="flow-node" style={{ width, height, filter: data._cookProgress > 0 ? `sepia(${Math.min(data._cookProgress * 2, 1)}) brightness(${1 - data._cookProgress})` : undefined }} data-drag-handle>
+    <div
+      className={`flow-node${isLocked ? ' flow-node--locked' : ''}`}
+      style={{
+        width,
+        height,
+        filter: data._cookProgress > 0 ? `sepia(${Math.min(data._cookProgress * 2, 1)}) brightness(${1 - data._cookProgress})` : undefined,
+        ...(isLockedComponent && data.fwNodeType ? { '--fw-type-color': FW_TYPE_COLORS[data.fwNodeType] } : {}),
+      }}
+      data-drag-handle
+    >
       <div
-        className="flow-node-header"
-        onDoubleClick={(e) => { e.stopPropagation(); onEnterNode(id); }}
+        className={`flow-node-header${isLockedComponent ? ' flow-node-header--locked' : ''}`}
+        onDoubleClick={isLockedComponent ? undefined : (e) => { e.stopPropagation(); onEnterNode(id); }}
       >
         <span className="flow-node-title">{data.label}</span>
 
@@ -194,13 +522,15 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
               >
                 Edit
               </button>
-              <button
-                className="flow-node-dropdown-item"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => { onAddPins(id); setMenuOpen(false); }}
-              >
-                Add Pins
-              </button>
+              {!isLocked && (
+                <button
+                  className="flow-node-dropdown-item"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => { onAddPins(id); setMenuOpen(false); }}
+                >
+                  Add Pins
+                </button>
+              )}
               <button
                 className="flow-node-dropdown-item"
                 onMouseDown={(e) => e.stopPropagation()}
@@ -228,8 +558,13 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
       </div>
 
       <div className="flow-node-body">
-        <div className="flow-node-icon" style={{ backgroundImage: `url(${data.icon})` }} />
-        {data.hasProperties && <div className="flow-node-property-dot" />}
+        {isLockedComponent
+          ? <FrameNodeBody id={id} data={data} onUpdateNodeData={onUpdateNodeData} isDevMode={isDevMode} />
+          : <>
+              <div className="flow-node-icon" style={{ backgroundImage: `url(${data.icon})` }} />
+              {data.hasProperties && <div className="flow-node-property-dot" />}
+            </>
+        }
       </div>
 
       {pinPositions(pinsIn, height).map((top, i) => {
@@ -676,7 +1011,8 @@ function PropertyNode({ id, data, onDeleteProperty, onChangePropertyType, onUpda
 // ─── EditModal ────────────────────────────────────────────────────────────────
 
 function EditModal({ node, onSave, onClose }) {
-  const isNote = node.type === 'noteNode';
+  const isNote   = node.type === 'noteNode';
+  const isLocked = !!node.data?.locked;
 
   const [label,    setLabel]    = React.useState(node.data.label);
   const [noteText, setNoteText] = React.useState(node.data.noteText ?? '');
@@ -713,10 +1049,11 @@ function EditModal({ node, onSave, onClose }) {
           <div className="modal-field">
             <label className="modal-label">Name</label>
             <input
-              className="modal-input"
+              className={`modal-input${isLocked ? ' modal-input--locked' : ''}`}
               value={label}
-              onChange={(e) => setLabel(e.target.value)}
+              onChange={isLocked ? undefined : (e) => setLabel(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
+              readOnly={isLocked}
               autoFocus
             />
           </div>
@@ -794,7 +1131,7 @@ function EditModal({ node, onSave, onClose }) {
 // ─── FlowCanvas ───────────────────────────────────────────────────────────────
 
 const FlowCanvas = React.forwardRef(function FlowCanvas(
-  { initialNodes, initialEdges, isNested, onEnterNode, onExitLevel, onDirty, onSaveAsTemplate },
+  { initialNodes, initialEdges, isNested, isFrame, isDevMode, onEnterNode, onExitLevel, onDirty, onSaveAsTemplate },
   ref
 ) {
   const [nodes, setNodes] = useNodesState(initialNodes);
@@ -972,13 +1309,18 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
 
       else if (cmd.command === 'renameNode') {
         const t = byName(cmd.name);
-        if (!t) return;
+        if (!t || t.data?.locked) return;
         setNodes(nds => nds.map(n => n.id !== t.id ? n : {
           ...n, data: { ...n.data, label: cmd.newName },
         }));
       }
     },
   }), [screenToFlowPosition, fitView, setNodes, setEdges]);
+
+  const onUpdateNodeData = React.useCallback((nodeId, updates) => {
+    setNodes((nds) => nds.map((n) => n.id !== nodeId ? n : { ...n, data: { ...n.data, ...updates } }));
+    onDirty?.();
+  }, [setNodes, onDirty]);
 
   const onDeleteNode = React.useCallback((nodeId) => {
     setNodes((nds) => nds.filter((n) => n.id !== nodeId));
@@ -1068,6 +1410,8 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
           setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), { ...copy, selected: true }]);
           onDirty?.();
         }}
+        onUpdateNodeData={onUpdateNodeData}
+        isDevMode={isDevMode}
       />
     ),
     noteNode: (props) => (
@@ -1097,7 +1441,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         onUpdatePropertyData={onUpdatePropertyData}
       />
     ),
-  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode, onChangePropertyType, onUpdatePropertyData, onUpdateNote]);
+  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode, onChangePropertyType, onUpdatePropertyData, onUpdateNote, onUpdateNodeData, isDevMode]);
 
   const onSaveEdit = (updatedNode) => {
     if (updatedNode.type === 'noteNode') {
@@ -1155,6 +1499,41 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         data: { label, nodeType: 'action', icon: action_icon, pinsIn, pinsOut },
       },
     ]);
+  };
+
+  const addFrameNode = (label) => {
+    const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+
+    const isGroup = label === 'Group';
+    const w = isGroup ? computeNodeWidth('Group') : FW_NODE_WIDTH;
+    const h = isGroup ? computeNodeHeight(1, 1)   : FW_NODE_HEIGHT;
+    const position = findFreePosition(nodesRef.current, w, h, center.x, center.y);
+
+    const data = isGroup
+      ? { label: 'Group', nodeType: 'group', icon: group_icon, pinsIn: 1, pinsOut: 1, locked: true }
+      : {
+          label,
+          nodeType:      'action',
+          icon:          action_icon,
+          pinsIn:        1,
+          pinsOut:       1,
+          pinInNames:    ['In'],
+          pinOutNames:   ['Out'],
+          locked:           true,
+          fwNodeType:       FW_NODE_TYPE_MAP[label]               ?? null,
+          fwModifierName:   FW_NODE_MODIFIER_MAP[label]?.name     ?? null,
+          fwModifierValue:  FW_NODE_MODIFIER_MAP[label]?.defaultValue ?? null,
+          fwActive:         true,
+          fwEfficiency:     100,
+          fwHealth:         100,
+          fwInputFactor:    1.0,
+        };
+
+    setNodes((nds) => [
+      ...nds,
+      { id: crypto.randomUUID(), type: 'flowNode', position, data },
+    ]);
+    onDirty?.();
   };
 
   const addNote = () => {
@@ -1251,9 +1630,15 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       >
         <Panel position="top-left">
           <div className="toolbar">
-            <button className="toolbar-btn" onClick={addNode}>+ Node</button>
+            {isFrame
+              ? <FramePalette onAdd={addFrameNode} />
+              : <button className="toolbar-btn" onClick={addNode}>+ Node</button>
+            }
+            {isFrame && !isNested && (
+              <button className="toolbar-btn toolbar-btn--fw-group" onClick={() => addFrameNode('Group')}>+ Group</button>
+            )}
             <button className="toolbar-btn toolbar-btn--note" onClick={addNote}>+ Note</button>
-            {isNested && (
+            {isNested && !isFrame && (
               <button className="toolbar-btn toolbar-btn--property" onClick={addProperty}>+ Property</button>
             )}
             {isNested && (

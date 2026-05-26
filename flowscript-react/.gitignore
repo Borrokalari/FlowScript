@@ -14,6 +14,9 @@ dist-electron
 release
 *.local
 
+# Dev mode unlock file — never commit or ship this
+fsdev.dll
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

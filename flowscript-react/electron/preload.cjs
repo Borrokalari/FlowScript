@@ -4,10 +4,11 @@ let maximizeChangeListener = null;
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // File operations
-  newFile:          ()               => ipcRenderer.invoke('file:new'),
-  openFile:         ()               => ipcRenderer.invoke('file:open'),
-  saveFile:         (content)        => ipcRenderer.invoke('file:save', content),
-  saveFileAs:       (content)        => ipcRenderer.invoke('file:saveAs', content),
+  newFile:          ()                    => ipcRenderer.invoke('file:new'),
+  newFrame:         ()                    => ipcRenderer.invoke('file:newFrame'),
+  openFile:         ()                    => ipcRenderer.invoke('file:open'),
+  saveFile:         (content, fileType)   => ipcRenderer.invoke('file:save',   content, fileType),
+  saveFileAs:       (content, fileType)   => ipcRenderer.invoke('file:saveAs', content, fileType),
   loadTextLocally:  (filePath)       => ipcRenderer.invoke('file:loadTextLocally', filePath),
   saveTextAs:       (content)        => ipcRenderer.invoke('file:saveTextAs', content),
   getVersion:        ()           => ipcRenderer.invoke('app:getVersion'),
@@ -53,4 +54,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   sendSavedAndReady: () => ipcRenderer.send('win:savedAndReady'),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  isDevMode:    ()    => ipcRenderer.invoke('app:isDevMode'),
 });

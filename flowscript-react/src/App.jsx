@@ -124,8 +124,8 @@ const MENUS = [
   {
     label: 'File',
     items: [
-      { label: 'New FlowScript', action: 'file:new' },
-      { label: 'New Frame', disabled: true },
+      { label: 'New .flowscript', action: 'file:new' },
+      { label: 'New .frame', action: 'file:newFrame' },
       { label: 'New Window', action: 'app:newWindow' },
       { type: 'sep' },
       { label: 'Open...', action: 'file:open' },
@@ -155,7 +155,7 @@ const MENUS = [
   },
 ];
 
-function TitleBar({ onAction, fileName, isDirty, recentFiles, onOpenRecent, onClearRecent }) {
+function TitleBar({ onAction, fileName, fileType, isDirty, recentFiles, onOpenRecent, onClearRecent }) {
   const [openIdx, setOpenIdx] = React.useState(null);
   const [submenuOpenIdx, setSubmenuOpenIdx] = React.useState(null);
   const [maximized, setMaximized] = React.useState(false);
@@ -252,7 +252,7 @@ function TitleBar({ onAction, fileName, isDirty, recentFiles, onOpenRecent, onCl
         onDoubleClick={() => isElectron && window.electronAPI.maximize()}
       >
         <span className="title-bar-title">
-          {fileName ? `FlowScript — ${fileName}${isDirty ? ' *' : ''}` : `FlowScript${isDirty ? ' *' : ''}`}
+          {(() => { const app = fileType === 'frame' ? 'Frame Walker' : 'FlowScript'; return fileName ? `${app} — ${fileName}${isDirty ? ' *' : ''}` : `${app}${isDirty ? ' *' : ''}`; })()}
         </span>
       </div>
 
@@ -390,10 +390,12 @@ export default function App() {
   const [dslText, setDslText]     = React.useState('');
   const [showHelp, setShowHelp]   = React.useState(false);
   const [fileName, setFileName]   = React.useState(null);
+  const [fileType, setFileType]   = React.useState('flowscript'); // 'flowscript' | 'frame'
   const [isDirty, setIsDirty]           = React.useState(false);
   const [textFileMode, setTextFileMode] = React.useState(null); // null | { language }
   const [recentFiles, setRecentFiles]   = React.useState([]);
   const [appVersion, setAppVersion]     = React.useState('');
+  const [isDevMode, setIsDevMode]       = React.useState(false);
   const [showAbout, setShowAbout]       = React.useState(false);
   const [prefs, setPrefs]               = React.useState(DEFAULT_PREFS);
   const [prefsDraft, setPrefsDraft]     = React.useState(null);
@@ -424,6 +426,7 @@ export default function App() {
     window.electronAPI.getRecentFiles().then(setRecentFiles);
     window.electronAPI.getVersion().then(setAppVersion);
     window.electronAPI.getTemplates().then(setTemplates);
+    window.electronAPI.isDevMode().then(setIsDevMode);
     window.electronAPI.getPreferences().then((saved) => {
       if (saved && Object.keys(saved).length > 0) {
         setPrefs((p) => ({ ...p, ...saved }));
@@ -484,6 +487,19 @@ export default function App() {
   const handleFileNew = React.useCallback(() => {
     window.electronAPI?.newFile();
     setFileName(null);
+    setFileType('flowscript');
+    setIsDirty(false);
+    setTextFileMode(null);
+    setNavStack([{ levelId: null, nodes: [], edges: [] }]);
+    setLoadKey((k) => k + 1);
+    setMode('graph');
+    setDslText('');
+  }, []);
+
+  const handleNewFrame = React.useCallback(() => {
+    window.electronAPI?.newFrame();
+    setFileName(null);
+    setFileType('frame');
     setIsDirty(false);
     setTextFileMode(null);
     setNavStack([{ levelId: null, nodes: [], edges: [] }]);
@@ -501,9 +517,10 @@ export default function App() {
     const result = await window.electronAPI.openRecentFile(filePath);
     if (!result.success) { refreshRecentFiles(); return; }
     const ext = result.fileName.split('.').pop().toLowerCase();
-    if (ext === 'flowscript') {
+    if (ext === 'flowscript' || ext === 'frame') {
       const { nodes, edges } = deserializeFromFile(result.content);
       setFileName(result.fileName);
+      setFileType(ext === 'frame' ? 'frame' : 'flowscript');
       setIsDirty(false);
       setTextFileMode(null);
       setNavStack([{ levelId: null, nodes, edges }]);
@@ -554,9 +571,10 @@ export default function App() {
     const result = await window.electronAPI.openFile();
     if (!result.success) return;
     const ext = result.fileName.split('.').pop().toLowerCase();
-    if (ext === 'flowscript') {
+    if (ext === 'flowscript' || ext === 'frame') {
       const { nodes, edges } = deserializeFromFile(result.content);
       setFileName(result.fileName);
+      setFileType(ext === 'frame' ? 'frame' : 'flowscript');
       setIsDirty(false);
       setTextFileMode(null);
       setNavStack([{ levelId: null, nodes, edges }]);
@@ -582,10 +600,10 @@ export default function App() {
   const handleFileSave = React.useCallback(async () => {
     if (!window.electronAPI) return false;
     const content = textFileMode ? dslText : getSerializedState();
-    const result = await window.electronAPI.saveFile(content);
+    const result = await window.electronAPI.saveFile(content, fileType);
     if (result.success) { setFileName(result.fileName); setIsDirty(false); refreshRecentFiles(); }
     return result.success;
-  }, [textFileMode, dslText, getSerializedState, refreshRecentFiles]);
+  }, [textFileMode, dslText, fileType, getSerializedState, refreshRecentFiles]);
 
   const handleFileSaveAs = React.useCallback(async () => {
     if (!window.electronAPI) return;
@@ -593,15 +611,16 @@ export default function App() {
       const result = await window.electronAPI.saveTextAs(dslText);
       if (result.success) { setFileName(result.fileName); setIsDirty(false); refreshRecentFiles(); }
     } else {
-      const result = await window.electronAPI.saveFileAs(getSerializedState());
+      const result = await window.electronAPI.saveFileAs(getSerializedState(), fileType);
       if (result.success) { setFileName(result.fileName); setIsDirty(false); refreshRecentFiles(); }
     }
-  }, [textFileMode, dslText, getSerializedState, refreshRecentFiles]);
+  }, [textFileMode, dslText, fileType, getSerializedState, refreshRecentFiles]);
 
   const handleMenuAction = React.useCallback((action) => {
     switch (action) {
-      case 'file:new':    handleFileNew();    break;
-      case 'file:open':   handleFileOpen();   break;
+      case 'file:new':      handleFileNew();    break;
+      case 'file:newFrame': handleNewFrame();   break;
+      case 'file:open':     handleFileOpen();   break;
       case 'file:save':   handleFileSave();   break;
       case 'file:saveAs': handleFileSaveAs(); break;
       case 'app:close':        window.electronAPI?.close(); break;
@@ -612,7 +631,7 @@ export default function App() {
       case 'help:quickstart':  handleQuickStart(); break;
       case 'help:reportissue': setIssueDraft({ title: '', body: '' }); setShowIssueReport(true); break;
     }
-  }, [handleFileNew, handleFileOpen, handleFileSave, handleFileSaveAs, handleQuickStart, prefs]);
+  }, [handleFileNew, handleNewFrame, handleFileOpen, handleFileSave, handleFileSaveAs, handleQuickStart, prefs]);
 
   const handleSavePrefs = React.useCallback(async () => {
     setPrefs(prefsDraft);
@@ -895,13 +914,15 @@ export default function App() {
     '--pin-gateway-border':  liveTheme.pinGatewayBorder,
     '--node-text-color':     livePrefs.nodeTextColor,
     '--edge-stroke-width':   livePrefs.edgeThickness,
+    '--ui-accent':           fileType === 'frame' ? '#F88E30' : liveTheme.nodeHandleBg,
   };
 
   return (
-    <div className="app-shell" style={cssVars}>
+    <div className={`app-shell${fileType === 'frame' ? ' app-shell--frame' : ''}`} style={cssVars}>
       <TitleBar
         onAction={handleMenuAction}
         fileName={fileName}
+        fileType={fileType}
         isDirty={isDirty}
         recentFiles={recentFiles}
         onOpenRecent={handleOpenRecent}
@@ -918,8 +939,9 @@ export default function App() {
           GRAPH
         </button>
         <button
-          className={`flowbar-tab${mode === 'code' ? ' flowbar-tab--active' : ''}`}
-          onClick={() => handleModeChange('code')}
+          className={`flowbar-tab${mode === 'code' ? ' flowbar-tab--active' : ''}${fileType === 'frame' ? ' flowbar-tab--disabled' : ''}`}
+          onClick={() => { if (fileType !== 'frame') handleModeChange('code'); }}
+          title={fileType === 'frame' ? 'CODE mode is not available in Frame Walker' : undefined}
         >
           CODE
         </button>
@@ -945,8 +967,11 @@ export default function App() {
 
       {/* Content */}
       <div className="app-content">
-        {mode === 'graph' && (
+        {mode === 'graph' && fileType !== 'frame' && (
           <img src={flowscriptLogo} className="canvas-watermark" alt="" />
+        )}
+        {mode === 'graph' && fileType === 'frame' && (
+          <div className="canvas-watermark-text">Frame Walker</div>
         )}
         {mode === 'graph' && (
           <ReactFlowProvider>
@@ -956,6 +981,8 @@ export default function App() {
               initialNodes={currentLevel.nodes}
               initialEdges={currentLevel.edges}
               isNested={navStack.length > 1}
+              isFrame={fileType === 'frame'}
+              isDevMode={isDevMode}
               onEnterNode={handleEnterNode}
               onExitLevel={handleExitLevel}
               onDirty={() => setIsDirty(true)}
