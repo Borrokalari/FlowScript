@@ -211,6 +211,25 @@ const FW_NODE_MODIFIER_MAP = {
   'Comms Transceiver':        { name: 'signalModifier',      defaultValue: 0.9 },
 };
 
+const FW_PIN_CONFIG = {
+  'Oxygen Generator':      { pinsIn: 0, pinsOut: 1, pinInNames: [],                    pinOutNames: ['Out'] },
+  'Radar Array':           { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Pwr'],         pinOutNames: ['Out'] },
+  'LIDAR Scanner':         { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Pwr'],         pinOutNames: ['Out'] },
+  'Targeting Module':      { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Pwr'],         pinOutNames: ['Out'] },
+  'Thermal Sensor':        { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Pwr'],         pinOutNames: ['Out'] },
+  'Radiator':              { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Pwr'],         pinOutNames: ['Out'] },
+  'Comms Transceiver':     { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Pwr'],         pinOutNames: ['Out'] },
+  'Vernier Boosters':      { pinsIn: 2, pinsOut: 0, pinInNames: ['Fuel', 'Pwr'],       pinOutNames: [] },
+  'Hydraulic Booster':     { pinsIn: 2, pinsOut: 1, pinInNames: ['Cool', 'Pwr'],       pinOutNames: ['Out'] },
+  'EngineBlock':           { pinsIn: 3, pinsOut: 1, pinInNames: ['Air', 'Fuel', 'Cool'], pinOutNames: ['Out'] },
+  'Thermal Buffer':        { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Cool'],        pinOutNames: ['Out'] },
+  'Weapon Cooling Jacket': { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Cool'],        pinOutNames: ['Out'] },
+  'Subsystem Overdrive':   { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Cool'],        pinOutNames: ['Out'] },
+  'Power Distributor':     { pinsIn: 1, pinsOut: 1, pinInNames: ['In'],                pinOutNames: ['Out 1'] },
+};
+
+const FW_PIN_DEFAULT = { pinsIn: 1, pinsOut: 1, pinInNames: ['In'], pinOutNames: ['Out'] };
+
 function FramePalette({ onAdd }) {
   const [open, setOpen]   = React.useState(false);
   const [query, setQuery] = React.useState('');
@@ -275,7 +294,12 @@ function getNodeSize(node) {
   if (node.type === 'noteNode')        return { w: NOTE_NODE_WIDTH,  h: NOTE_NODE_HEIGHT };
   if (node.type === 'propertyNode')    return { w: 215, h: 120 };
   if (node.type === 'shapeNode')       return { w: node.data?.shapeWidth ?? 200, h: node.data?.shapeHeight ?? 200 };
-  if (node.data?.locked && node.data.nodeType !== 'group') return { w: FW_NODE_WIDTH, h: FW_NODE_HEIGHT };
+  if (node.data?.locked && node.data.nodeType !== 'group') {
+    const h = node.data.label === 'Power Distributor'
+      ? FW_NODE_HEIGHT + Math.max(0, (node.data.pinsOut ?? 1) - 5) * 30
+      : FW_NODE_HEIGHT;
+    return { w: FW_NODE_WIDTH, h };
+  }
   return {
     w: computeNodeWidth(node.data?.label ?? ''),
     h: computeNodeHeight(node.data?.pinsIn ?? 1, node.data?.pinsOut ?? 1),
@@ -332,7 +356,7 @@ function findFreePosition(existingNodes, newW, newH, startX, startY) {
 
 const FW_BASE_RATE = 5;
 
-function FrameNodeBody({ id, data, onUpdateNodeData, isDevMode }) {
+function FrameNodeBody({ id, data, onUpdateNodeData, isDevMode, onAddOutPin, onRemoveOutPin }) {
   const active         = data.fwActive         ?? true;
   const efficiency     = data.fwEfficiency     ?? 100;
   const health         = data.fwHealth         ?? 100;
@@ -340,7 +364,13 @@ function FrameNodeBody({ id, data, onUpdateNodeData, isDevMode }) {
   const baseRate       = data.fwBaseRate       ?? FW_BASE_RATE;
   const modifierValue  = data.fwModifierValue  ?? 1.0;
 
-  const efficiencyMultiplier = efficiency / 100;
+  const isPowerDist    = data.label === 'Power Distributor';
+  const pinsOut        = data.pinsOut ?? 1;
+  const overloadPins   = isPowerDist ? Math.max(0, pinsOut - 5) : 0;
+  const overloadPenalty = overloadPins * 10;
+  const effectiveEfficiency = isPowerDist ? Math.max(0, efficiency - overloadPenalty) : efficiency;
+
+  const efficiencyMultiplier = effectiveEfficiency / 100;
   const damageMultiplier     = health / 100;
   const activeMultiplier     = active ? 1 : 0;
 
@@ -474,6 +504,11 @@ function FrameNodeBody({ id, data, onUpdateNodeData, isDevMode }) {
               />
             </div>
           )}
+          {overloadPins > 0 && (
+            <div className="fw-prop-row fw-prop-row--overload">
+              <span className="fw-prop-overload">Overload: −{overloadPenalty}%</span>
+            </div>
+          )}
           <div className="fw-prop-row">
             <span className="fw-prop-label">Input Rate:</span>
             <span className="fw-prop-value">{inputRate.toFixed(2)} u/s</span>
@@ -484,13 +519,20 @@ function FrameNodeBody({ id, data, onUpdateNodeData, isDevMode }) {
           </div>
         </div>
       </div>
+      {isPowerDist && (
+        <div className="fw-add-out-row">
+          <button className="fw-add-out-btn" onClick={() => onAddOutPin?.(id)}>＋ Out</button>
+          <button className="fw-add-out-btn fw-add-out-btn--remove" onClick={() => onRemoveOutPin?.(id)} disabled={pinsOut <= 1}>－ Out</button>
+          <span className="fw-add-out-hint">{pinsOut} output{pinsOut !== 1 ? 's' : ''}</span>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── FlowNode ────────────────────────────────────────────────────────────────
 
-function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate, onDuplicateNode, onUpdateNodeData, isDevMode }) {
+function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate, onDuplicateNode, onUpdateNodeData, isDevMode, onAddOutPin, onRemoveOutPin }) {
   const [menuOpen,      setMenuOpen]      = React.useState(false);
   const [editingPin,    setEditingPin]    = React.useState(null);
   const [tooltipVisible, setTooltipVisible] = React.useState(false);
@@ -511,7 +553,9 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
   const isLockedComponent = isLocked && data.nodeType !== 'group';
   const pinsIn  = data.pinsIn  ?? 1;
   const pinsOut = data.pinsOut ?? 1;
-  const height  = isLockedComponent ? FW_NODE_HEIGHT : computeNodeHeight(pinsIn, pinsOut);
+  const height  = isLockedComponent
+    ? FW_NODE_HEIGHT + (data.label === 'Power Distributor' ? Math.max(0, pinsOut - 5) * 30 : 0)
+    : computeNodeHeight(pinsIn, pinsOut);
   const width   = isLockedComponent ? FW_NODE_WIDTH  : computeNodeWidth(data.label);
 
   const savePinName = () => {
@@ -609,7 +653,7 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
 
       <div className="flow-node-body">
         {isLockedComponent
-          ? <FrameNodeBody id={id} data={data} onUpdateNodeData={onUpdateNodeData} isDevMode={isDevMode} />
+          ? <FrameNodeBody id={id} data={data} onUpdateNodeData={onUpdateNodeData} isDevMode={isDevMode} onAddOutPin={onAddOutPin} onRemoveOutPin={onRemoveOutPin} />
           : <>
               <div className="flow-node-icon" style={{ backgroundImage: `url(${data.icon})` }} />
               {data.hasProperties && <div className="flow-node-property-dot" />}
@@ -1437,6 +1481,34 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     setNodes((nds) => nds.filter((n) => n.id !== nodeId));
   }, [setNodes, pushUndo]);
 
+  const onAddOutPin = React.useCallback((nodeId) => {
+    pushUndo();
+    setNodes((nds) => nds.map((n) => {
+      if (n.id !== nodeId) return n;
+      const newCount = (n.data.pinsOut ?? 1) + 1;
+      const newNames = [...(n.data.pinOutNames || []), `Out ${newCount}`];
+      return { ...n, data: { ...n.data, pinsOut: newCount, pinOutNames: newNames } };
+    }));
+    onDirty?.();
+  }, [setNodes, pushUndo, onDirty]);
+
+  const onRemoveOutPin = React.useCallback((nodeId) => {
+    pushUndo();
+    setNodes((nds) => nds.map((n) => {
+      if (n.id !== nodeId) return n;
+      const newCount = Math.max(1, (n.data.pinsOut ?? 1) - 1);
+      const newNames = (n.data.pinOutNames || []).slice(0, newCount);
+      return { ...n, data: { ...n.data, pinsOut: newCount, pinOutNames: newNames } };
+    }));
+    setEdges((eds) => eds.filter((e) => {
+      if (e.source !== nodeId) return true;
+      const node = nodesRef.current.find((n) => n.id === nodeId);
+      const removedIdx = (node?.data?.pinsOut ?? 1) - 1;
+      return e.sourceHandle !== `pin-out-${removedIdx}`;
+    }));
+    onDirty?.();
+  }, [setNodes, setEdges, pushUndo, onDirty]);
+
   const onEditNode = React.useCallback((nodeId) => {
     setEditingNode(nodesRef.current.find((n) => n.id === nodeId) ?? null);
   }, []);
@@ -1529,6 +1601,8 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         }}
         onUpdateNodeData={onUpdateNodeData}
         isDevMode={isDevMode}
+        onAddOutPin={onAddOutPin}
+        onRemoveOutPin={onRemoveOutPin}
       />
     ),
     noteNode: (props) => (
@@ -1559,7 +1633,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         onUpdatePropertyData={onUpdatePropertyData}
       />
     ),
-  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode, onChangePropertyType, onUpdatePropertyData, onUpdateNote, onUpdateNodeData, isDevMode, pushUndo]);
+  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode, onChangePropertyType, onUpdatePropertyData, onUpdateNote, onUpdateNodeData, isDevMode, pushUndo, onAddOutPin, onRemoveOutPin]);
 
   const onSaveEdit = (updatedNode) => {
     pushUndo();
@@ -1626,20 +1700,18 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
 
     const isGroup = label === 'Group';
+    const pinCfg = FW_PIN_CONFIG[label] ?? FW_PIN_DEFAULT;
+    const isPowerDist = label === 'Power Distributor';
     const w = isGroup ? computeNodeWidth('Group') : FW_NODE_WIDTH;
-    const h = isGroup ? computeNodeHeight(1, 1)   : FW_NODE_HEIGHT;
+    const h = isGroup ? computeNodeHeight(1, 1) : isPowerDist ? FW_NODE_HEIGHT + Math.max(0, pinCfg.pinsOut - 5) * 30 : FW_NODE_HEIGHT;
     const position = findFreePosition(nodesRef.current, w, h, center.x, center.y);
-
     const data = isGroup
       ? { label: 'Group', nodeType: 'group', icon: group_icon, pinsIn: 1, pinsOut: 1, locked: true }
       : {
           label,
           nodeType:      'action',
           icon:          action_icon,
-          pinsIn:        1,
-          pinsOut:       1,
-          pinInNames:    ['In'],
-          pinOutNames:   ['Out'],
+          ...pinCfg,
           locked:           true,
           fwNodeType:       FW_NODE_TYPE_MAP[label]               ?? null,
           fwModifierName:   FW_NODE_MODIFIER_MAP[label]?.name     ?? null,

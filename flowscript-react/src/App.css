@@ -716,6 +716,58 @@
   color: #c0c8d0;
 }
 
+.fw-prop-overload {
+  font-size: 9px;
+  font-weight: 700;
+  color: #e05a2b;
+  letter-spacing: 0.04em;
+}
+
+.fw-add-out-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 4px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  margin-top: 2px;
+}
+
+.fw-add-out-btn {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(248, 142, 48, 0.12);
+  border: 1px solid rgba(248, 142, 48, 0.35);
+  color: #F88E30;
+  border-radius: 3px;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.fw-add-out-btn:hover:not(:disabled) {
+  background: rgba(248, 142, 48, 0.25);
+}
+
+.fw-add-out-btn--remove {
+  background: rgba(180, 60, 40, 0.12);
+  border-color: rgba(180, 60, 40, 0.35);
+  color: #c0543a;
+}
+
+.fw-add-out-btn--remove:hover:not(:disabled) {
+  background: rgba(180, 60, 40, 0.25);
+}
+
+.fw-add-out-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.fw-add-out-hint {
+  font-size: 9px;
+  color: #778;
+}
+
 /* ------------------------------
    FRAME WALKER TOOLTIP
    ------------------------------ */
