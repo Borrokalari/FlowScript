@@ -6,7 +6,14 @@ function beforeMount(monaco) {
   register(monaco);
 }
 
-export default function CodeEditor({ value, onChange, language }) {
+const CodeEditor = React.forwardRef(function CodeEditor({ value, onChange, language }, ref) {
+  const editorRef = React.useRef(null);
+
+  React.useImperativeHandle(ref, () => ({
+    undo: () => editorRef.current?.trigger('keyboard', 'undo', null),
+    redo: () => editorRef.current?.trigger('keyboard', 'redo', null),
+  }));
+
   return (
     <Editor
       height="100%"
@@ -15,6 +22,7 @@ export default function CodeEditor({ value, onChange, language }) {
       value={value}
       onChange={(val) => onChange(val ?? '')}
       beforeMount={beforeMount}
+      onMount={(editor) => { editorRef.current = editor; }}
       options={{
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: 13,
@@ -33,4 +41,6 @@ export default function CodeEditor({ value, onChange, language }) {
       }}
     />
   );
-}
+});
+
+export default CodeEditor;

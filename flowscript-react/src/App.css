@@ -78,7 +78,7 @@
 .title-bar-title {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  color: #444;
+  color: #888;
   letter-spacing: 0.05em;
   pointer-events: none;
   white-space: nowrap;
@@ -370,6 +370,35 @@
 .toolbar-btn--property:hover {
   background: #CE834C;
   color: #fff;
+}
+
+.title-bar-undo {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  -webkit-app-region: no-drag;
+  border-left: 1px solid rgba(255,255,255,0.07);
+  margin-left: 2px;
+}
+
+.title-bar-undo-btn {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 13px;
+  padding: 0 8px;
+  cursor: pointer;
+  transition: color 0.15s;
+  line-height: 1;
+}
+
+.title-bar-undo-btn:disabled {
+  color: #444;
+  cursor: default;
+}
+
+.title-bar-undo-btn:not(:disabled):hover {
+  color: #ccc;
 }
 
 .toolbar-btn--up {
@@ -685,6 +714,41 @@
 .fw-prop-value {
   font-size: 10px;
   color: #c0c8d0;
+}
+
+/* ------------------------------
+   FRAME WALKER TOOLTIP
+   ------------------------------ */
+
+.fw-tooltip {
+  background: rgba(12, 16, 24, 0.97);
+  border-left: 3px solid var(--fw-type-color, #F88E30);
+  border-radius: 4px;
+  padding: 9px 13px 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 1px 4px rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+  pointer-events: none;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.fw-tooltip-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #F88E30;
+  letter-spacing: 0.06em;
+  margin-bottom: 7px;
+  text-transform: uppercase;
+}
+
+.fw-tooltip-line {
+  font-size: 10px;
+  color: #b8c4cc;
+  line-height: 1.55;
+  margin: 0 0 3px;
+}
+
+.fw-tooltip-line:last-child {
+  margin-bottom: 0;
 }
 
 /* ------------------------------

@@ -81,9 +81,45 @@ const NOTE_NODE_HEIGHT = 130;
 const FW_NODE_WIDTH    = 370;
 const FW_NODE_HEIGHT   = 245;
 
+// ─── Frame Walker node descriptions (loaded from public JSON) ────────────────
+
+let _fwDescriptions = {};
+fetch('/frame_node_descriptions.json')
+  .then(r => r.json())
+  .then(d => { _fwDescriptions = d; })
+  .catch(() => {});
+
+const FW_TOOLTIP_WIDTH = 270;
+
+function FWTooltip({ anchorRef, label }) {
+  const [style, setStyle] = React.useState({});
+
+  React.useLayoutEffect(() => {
+    if (!anchorRef.current) return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    const spaceRight = window.innerWidth - rect.right;
+    const left = spaceRight >= FW_TOOLTIP_WIDTH + 16
+      ? rect.right + 10
+      : rect.left - FW_TOOLTIP_WIDTH - 10;
+    setStyle({ position: 'fixed', top: rect.top, left, width: FW_TOOLTIP_WIDTH });
+  }, [anchorRef]);
+
+  const text = _fwDescriptions[label] ?? 'No description available.';
+
+  return ReactDOM.createPortal(
+    <div className="fw-tooltip" style={style}>
+      <div className="fw-tooltip-title">{label}</div>
+      {text.split('\n').map((line, i) => (
+        <p key={i} className="fw-tooltip-line">{line}</p>
+      ))}
+    </div>,
+    document.body
+  );
+}
+
 // ─── Frame Walker palette nodes ───────────────────────────────────────────────
 
-const FRAME_NODES = [
+export const FRAME_NODES = [
   'Group',
   'EngineBlock', 'Battery', 'MechanicalPump', 'AirFilter', 'AirBreather',
   'Leg Actuator', 'Inventory Container', 'Capacitor Bank', 'Heat Sink', 'Radiator',
@@ -455,10 +491,21 @@ function FrameNodeBody({ id, data, onUpdateNodeData, isDevMode }) {
 // ─── FlowNode ────────────────────────────────────────────────────────────────
 
 function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate, onDuplicateNode, onUpdateNodeData, isDevMode }) {
-  const [menuOpen,   setMenuOpen]   = React.useState(false);
-  const [editingPin, setEditingPin] = React.useState(null);
-  const menuRef = React.useRef(null);
+  const [menuOpen,      setMenuOpen]      = React.useState(false);
+  const [editingPin,    setEditingPin]    = React.useState(null);
+  const [tooltipVisible, setTooltipVisible] = React.useState(false);
+  const menuRef        = React.useRef(null);
+  const headerRef      = React.useRef(null);
+  const tooltipTimer   = React.useRef(null);
   const updateNodeInternals = useUpdateNodeInternals();
+
+  const handleHeaderEnter = React.useCallback(() => {
+    tooltipTimer.current = setTimeout(() => setTooltipVisible(true), 700);
+  }, []);
+  const handleHeaderLeave = React.useCallback(() => {
+    clearTimeout(tooltipTimer.current);
+    setTooltipVisible(false);
+  }, []);
 
   const isLocked          = !!data.locked;
   const isLockedComponent = isLocked && data.nodeType !== 'group';
@@ -498,8 +545,11 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
       data-drag-handle
     >
       <div
+        ref={isLockedComponent ? headerRef : undefined}
         className={`flow-node-header${isLockedComponent ? ' flow-node-header--locked' : ''}`}
         onDoubleClick={isLockedComponent ? undefined : (e) => { e.stopPropagation(); onEnterNode(id); }}
+        onMouseEnter={isLockedComponent ? handleHeaderEnter : undefined}
+        onMouseLeave={isLockedComponent ? handleHeaderLeave : undefined}
       >
         <span className="flow-node-title">{data.label}</span>
 
@@ -566,6 +616,8 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
             </>
         }
       </div>
+
+      {isLockedComponent && tooltipVisible && <FWTooltip anchorRef={headerRef} label={data.label} />}
 
       {pinPositions(pinsIn, height).map((top, i) => {
         const name      = (data.pinInNames || [])[i] || '';
@@ -741,7 +793,7 @@ function NoteNode({ id, data, onDeleteNode, onEditNode, onDuplicateNode, onUpdat
 
 // ─── ShapeNode ───────────────────────────────────────────────────────────────
 
-function ShapeNode({ id, data, selected }) {
+function ShapeNode({ id, data, selected, onPushUndo }) {
   const { setNodes, getNode, getViewport } = useReactFlow();
   const w = data.shapeWidth  ?? 200;
   const h = data.shapeHeight ?? 200;
@@ -750,6 +802,7 @@ function ShapeNode({ id, data, selected }) {
   const startResize = React.useCallback((e, dir) => {
     e.stopPropagation();
     e.preventDefault();
+    onPushUndo?.();
 
     const node = getNode(id);
     if (!node) return;
@@ -798,7 +851,7 @@ function ShapeNode({ id, data, selected }) {
     document.addEventListener('mouseup', onUp);
   }, [id, isCircle, getNode, getViewport, setNodes]);
 
-  const SW = 15;
+  const SW = 8;
   const HS = 10;
   const hBase = {
     position: 'absolute',
@@ -1131,7 +1184,7 @@ function EditModal({ node, onSave, onClose }) {
 // ─── FlowCanvas ───────────────────────────────────────────────────────────────
 
 const FlowCanvas = React.forwardRef(function FlowCanvas(
-  { initialNodes, initialEdges, isNested, isFrame, isDevMode, onEnterNode, onExitLevel, onDirty, onSaveAsTemplate },
+  { initialNodes, initialEdges, isNested, isFrame, isDevMode, onEnterNode, onExitLevel, onDirty, onSaveAsTemplate, onUndoChange },
   ref
 ) {
   const [nodes, setNodes] = useNodesState(initialNodes);
@@ -1145,8 +1198,54 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
   const edgesRef = React.useRef(edges);
   edgesRef.current = edges;
 
+  const undoStack          = React.useRef([]);
+  const redoStack          = React.useRef([]);
+  const dragStartSnapshot  = React.useRef(null);
+  const [canUndo, setCanUndo] = React.useState(false);
+  const [canRedo, setCanRedo] = React.useState(false);
+  const onUndoChangeRef = React.useRef(onUndoChange);
+  onUndoChangeRef.current = onUndoChange;
+
+  React.useEffect(() => {
+    onUndoChangeRef.current?.(canUndo, canRedo);
+  }, [canUndo, canRedo]);
+
+  const pushUndo = React.useCallback(() => {
+    undoStack.current = [...undoStack.current, { nodes: nodesRef.current, edges: edgesRef.current }].slice(-50);
+    redoStack.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, []);
+
+  const undo = React.useCallback(() => {
+    if (!undoStack.current.length) return;
+    const snapshot = undoStack.current[undoStack.current.length - 1];
+    redoStack.current = [{ nodes: nodesRef.current, edges: edgesRef.current }, ...redoStack.current].slice(0, 50);
+    undoStack.current = undoStack.current.slice(0, -1);
+    setNodes(snapshot.nodes);
+    setEdges(snapshot.edges);
+    setCanUndo(undoStack.current.length > 0);
+    setCanRedo(true);
+    onDirty?.();
+  }, [setNodes, setEdges, onDirty]);
+
+  const redo = React.useCallback(() => {
+    if (!redoStack.current.length) return;
+    const snapshot = redoStack.current[0];
+    undoStack.current = [...undoStack.current, { nodes: nodesRef.current, edges: edgesRef.current }];
+    redoStack.current = redoStack.current.slice(1);
+    setNodes(snapshot.nodes);
+    setEdges(snapshot.edges);
+    setCanUndo(true);
+    setCanRedo(redoStack.current.length > 0);
+    onDirty?.();
+  }, [setNodes, setEdges, onDirty]);
+
   React.useImperativeHandle(ref, () => ({
+    undo,
+    redo,
     addNode: (data) => {
+      pushUndo();
       const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
       const position = findFreePosition(nodesRef.current, computeNodeWidth(data.label), computeNodeHeight(data.pinsIn, data.pinsOut), center.x, center.y);
       const inferred = inferNodeType(data.pinsIn, data.pinsOut);
@@ -1156,6 +1255,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         { id: crypto.randomUUID(), type: 'flowNode', position, data: nodeData },
       ]);
     },
+    addFrameNode: (label) => addFrameNode(label),
     cookNode: (nodeId) => {
       const duration  = 2500;
       const startTime = performance.now();
@@ -1176,6 +1276,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       requestAnimationFrame(tick);
     },
     addNote: ({ label, noteText } = {}) => {
+      pushUndo();
       const center   = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
       const position = findFreePosition(nodesRef.current, NOTE_NODE_WIDTH, NOTE_NODE_HEIGHT, center.x, center.y);
       setNodes((nds) => [
@@ -1184,6 +1285,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       ]);
     },
     addShape: (shapeType) => {
+      pushUndo();
       const center   = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
       const sw       = shapeType === 'circle' ? 180 : 240;
       const sh       = shapeType === 'circle' ? 180 : 160;
@@ -1221,6 +1323,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     pasteNode: () => {
       const src = clipboardRef.current;
       if (!src) return false;
+      pushUndo();
       const copy = instantiateTemplateNode(src);
       const { w, h } = getNodeSize(src);
       copy.position = findFreePosition(nodesRef.current, w, h, src.position.x + 40, src.position.y + 40);
@@ -1231,6 +1334,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     duplicateNode: (nodeId) => {
       const node = nodesRef.current.find((n) => n.id === nodeId);
       if (!node) return false;
+      pushUndo();
       clipboardRef.current = node;
       const copy = instantiateTemplateNode(node);
       const { w, h } = getNodeSize(node);
@@ -1240,6 +1344,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       return true;
     },
     addFromTemplate: (templateNode) => {
+      pushUndo();
       const node     = instantiateTemplateNode(templateNode);
       const center   = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
       const w        = computeNodeWidth(node.data.label);
@@ -1254,6 +1359,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       if (cmd.command === 'deleteNode') {
         const t = byName(cmd.name);
         if (!t) return;
+        pushUndo();
         setNodes(nds => nds.filter(n => n.id !== t.id));
         setEdges(eds => eds.filter(e => e.source !== t.id && e.target !== t.id));
       }
@@ -1261,6 +1367,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       else if (cmd.command === 'addPins') {
         const t = byName(cmd.name);
         if (!t) return;
+        pushUndo();
         setNodes(nds => nds.map(n => {
           if (n.id !== t.id) return n;
           const newIn  = (n.data.pinsIn  ?? 0) + cmd.pinsIn;
@@ -1281,6 +1388,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       else if (cmd.command === 'addProperty') {
         const t = byName(cmd.name);
         if (!t) return;
+        pushUndo();
         const existingProps = (t.data.innerNodes ?? []).filter(n => n.type === 'propertyNode');
         const newProp = {
           id:       crypto.randomUUID(),
@@ -1302,6 +1410,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         if (!VALID.includes(cmd.nodeType)) return;
         const t = byName(cmd.name);
         if (!t || t.data.nodeType === 'group') return;
+        pushUndo();
         setNodes(nds => nds.map(n => n.id !== t.id ? n : {
           ...n, data: { ...n.data, nodeType: cmd.nodeType, icon: NODE_ICONS[cmd.nodeType] },
         }));
@@ -1310,12 +1419,13 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       else if (cmd.command === 'renameNode') {
         const t = byName(cmd.name);
         if (!t || t.data?.locked) return;
+        pushUndo();
         setNodes(nds => nds.map(n => n.id !== t.id ? n : {
           ...n, data: { ...n.data, label: cmd.newName },
         }));
       }
     },
-  }), [screenToFlowPosition, fitView, setNodes, setEdges]);
+  }), [screenToFlowPosition, fitView, setNodes, setEdges, pushUndo, undo, redo]);
 
   const onUpdateNodeData = React.useCallback((nodeId, updates) => {
     setNodes((nds) => nds.map((n) => n.id !== nodeId ? n : { ...n, data: { ...n.data, ...updates } }));
@@ -1323,14 +1433,16 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
   }, [setNodes, onDirty]);
 
   const onDeleteNode = React.useCallback((nodeId) => {
+    pushUndo();
     setNodes((nds) => nds.filter((n) => n.id !== nodeId));
-  }, [setNodes]);
+  }, [setNodes, pushUndo]);
 
   const onEditNode = React.useCallback((nodeId) => {
     setEditingNode(nodesRef.current.find((n) => n.id === nodeId) ?? null);
   }, []);
 
   const onAddPins = React.useCallback((nodeId) => {
+    pushUndo();
     setNodes((nds) => nds.map((n) => {
       if (n.id !== nodeId) return n;
       const newIn  = (n.data.pinsIn  ?? 1) + 1;
@@ -1346,9 +1458,10 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         },
       };
     }));
-  }, [setNodes]);
+  }, [setNodes, pushUndo]);
 
   const onRenamePinName = React.useCallback((nodeId, side, index, name) => {
+    pushUndo();
     setNodes((nds) => nds.map((n) => {
       if (n.id !== nodeId) return n;
       const key   = side === 'in' ? 'pinInNames' : 'pinOutNames';
@@ -1356,13 +1469,14 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       names[index] = name;
       return { ...n, data: { ...n.data, [key]: names } };
     }));
-  }, [setNodes]);
+  }, [setNodes, pushUndo]);
 
   const handleEnterNode = React.useCallback((nodeId) => {
     onEnterNode(nodeId, nodesRef.current, edgesRef.current);
   }, [onEnterNode]);
 
   const onChangePropertyType = React.useCallback((nodeId, propertyType) => {
+    pushUndo();
     setNodes((nds) => nds.map((n) => {
       if (n.id !== nodeId) return n;
       const base = { propertyType, name: n.data.name || '' };
@@ -1374,18 +1488,20 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         return { ...n, data: { ...base, min: 0, max: 100, sliderValue: 0 } };
       return { ...n, data: { ...n.data, propertyType } };
     }));
-  }, [setNodes]);
+  }, [setNodes, pushUndo]);
 
   const onUpdatePropertyData = React.useCallback((nodeId, updates) => {
+    pushUndo();
     setNodes((nds) => nds.map((n) =>
       n.id === nodeId ? { ...n, data: { ...n.data, ...updates } } : n
     ));
-  }, [setNodes]);
+  }, [setNodes, pushUndo]);
 
   const onUpdateNote = React.useCallback((nodeId, noteText) => {
+    pushUndo();
     setNodes((nds) => nds.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, noteText } } : n));
     onDirty?.();
-  }, [setNodes, onDirty]);
+  }, [setNodes, onDirty, pushUndo]);
 
   const nodeTypes = React.useMemo(() => ({
     flowNode: (props) => (
@@ -1403,6 +1519,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         onDuplicateNode={(nodeId) => {
           const node = nodesRef.current.find((n) => n.id === nodeId);
           if (!node) return;
+          pushUndo();
           clipboardRef.current = node;
           const copy = instantiateTemplateNode(node);
           const { w, h } = getNodeSize(node);
@@ -1422,6 +1539,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         onDuplicateNode={(nodeId) => {
           const node = nodesRef.current.find((n) => n.id === nodeId);
           if (!node) return;
+          pushUndo();
           clipboardRef.current = node;
           const copy = instantiateTemplateNode(node);
           copy.position = findFreePosition(nodesRef.current, NOTE_NODE_WIDTH, NOTE_NODE_HEIGHT, node.position.x + 40, node.position.y + 40);
@@ -1431,7 +1549,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         onUpdateNote={onUpdateNote}
       />
     ),
-    shapeNode: (props) => <ShapeNode {...props} />,
+    shapeNode: (props) => <ShapeNode {...props} onPushUndo={pushUndo} />,
     pinGateway: PinGatewayNode,
     propertyNode: (props) => (
       <PropertyNode
@@ -1441,9 +1559,10 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         onUpdatePropertyData={onUpdatePropertyData}
       />
     ),
-  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode, onChangePropertyType, onUpdatePropertyData, onUpdateNote, onUpdateNodeData, isDevMode]);
+  }), [onDeleteNode, onEditNode, onAddPins, onRenamePinName, handleEnterNode, onChangePropertyType, onUpdatePropertyData, onUpdateNote, onUpdateNodeData, isDevMode, pushUndo]);
 
   const onSaveEdit = (updatedNode) => {
+    pushUndo();
     if (updatedNode.type === 'noteNode') {
       setNodes((nds) => nds.map((n) => n.id === updatedNode.id ? updatedNode : n));
       setEditingNode(null);
@@ -1486,6 +1605,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
   };
 
   const addNode = () => {
+    pushUndo();
     const label = 'new node';
     const pinsIn = 1, pinsOut = 1;
     const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
@@ -1502,6 +1622,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
   };
 
   const addFrameNode = (label) => {
+    pushUndo();
     const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
 
     const isGroup = label === 'Group';
@@ -1537,6 +1658,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
   };
 
   const addNote = () => {
+    pushUndo();
     const center   = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     const position = findFreePosition(nodesRef.current, NOTE_NODE_WIDTH, NOTE_NODE_HEIGHT, center.x, center.y);
     setNodes((nds) => [
@@ -1546,6 +1668,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
   };
 
   const addProperty = () => {
+    pushUndo();
     const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     const position = findFreePosition(nodesRef.current, 215, 120, center.x, center.y);
     setNodes((nds) => [
@@ -1559,18 +1682,33 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       const tag = document.activeElement?.tagName;
       const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
+      if (!isInput && e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (!isInput && e.ctrlKey && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
       if (!isInput && (e.key === 'Delete' || e.key === 'Backspace')) {
         const deletedIds = new Set(
           nodesRef.current
             .filter((n) => n.selected && !n.id.startsWith('__gateway_'))
             .map((n) => n.id)
         );
-        if (deletedIds.size > 0) {
-          setNodes((nds) => nds.filter((n) => !deletedIds.has(n.id)));
-          setEdges((eds) => eds.filter((edge) => !deletedIds.has(edge.source) && !deletedIds.has(edge.target)));
-          onDirty?.();
+        const hasSelectedEdges = edgesRef.current.some((e) => e.selected);
+        if (deletedIds.size > 0 || hasSelectedEdges) {
+          pushUndo();
+          if (deletedIds.size > 0) {
+            setNodes((nds) => nds.filter((n) => !deletedIds.has(n.id)));
+            setEdges((eds) => eds.filter((edge) => !deletedIds.has(edge.source) && !deletedIds.has(edge.target)));
+            onDirty?.();
+          }
+          setEdges((eds) => eds.filter((edge) => !edge.selected));
         }
-        setEdges((eds) => eds.filter((edge) => !edge.selected));
       }
 
       if (!isInput && e.ctrlKey && e.key === 'c') {
@@ -1582,6 +1720,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         const src = clipboardRef.current;
         if (src) {
           e.preventDefault();
+          pushUndo();
           const copy = instantiateTemplateNode(src);
           const w    = computeNodeWidth(copy.data.label);
           const h    = computeNodeHeight(copy.data.pinsIn ?? 1, copy.data.pinsOut ?? 1);
@@ -1593,7 +1732,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setEdges, setNodes, onDirty]);
+  }, [setEdges, setNodes, onDirty, undo, redo, pushUndo]);
 
   const DIRTY_NODE_TYPES = new Set(['add', 'remove', 'reset', 'position']);
   const DIRTY_EDGE_TYPES = new Set(['add', 'remove', 'reset']);
@@ -1607,9 +1746,26 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     setEdges((eds) => applyEdgeChanges(changes, eds));
   };
   const onConnect = (connection) => {
+    pushUndo();
     onDirty?.();
     setEdges((eds) => addEdge(connection, eds));
   };
+
+  const onNodeDragStart = React.useCallback((_, node) => {
+    if (node.id.startsWith('__gateway_')) return;
+    dragStartSnapshot.current = { nodes: nodesRef.current, edges: edgesRef.current };
+  }, []);
+
+  const onNodeDragStop = React.useCallback((_, node) => {
+    if (node.id.startsWith('__gateway_')) return;
+    const snap = dragStartSnapshot.current;
+    dragStartSnapshot.current = null;
+    if (!snap) return;
+    undoStack.current = [...undoStack.current, snap].slice(-50);
+    redoStack.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, []);
 
   return (
     <>
@@ -1627,6 +1783,8 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
         onNodesChange={onNodesChangeWrapped}
         onEdgesChange={onEdgesChangeWrapped}
         onConnect={onConnect}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDragStop={onNodeDragStop}
       >
         <Panel position="top-left">
           <div className="toolbar">

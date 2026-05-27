@@ -1,6 +1,6 @@
 import React from 'react';
 import { ReactFlowProvider } from 'reactflow';
-import FlowCanvas, { NODE_ICONS } from './FlowCanvas';
+import FlowCanvas, { NODE_ICONS, FRAME_NODES } from './FlowCanvas';
 import flowscriptLogo from './FlowScript_Logo.png';
 import CodeEditor from './CodeEditor';
 import { serialize } from './dsl/serializer';
@@ -57,10 +57,10 @@ const THEMES = {
     nodeBodyBg:      '#9E77ED',
     nodeBorder:      '#555555',
     nodeHeaderBg:    '#5F35B2',
-    nodeHandleBg:    '#52d7c6',
+    nodeHandleBg:    '#9E77ED',
     nodeMenuBg:      '#8FB2C7',
     pinGatewayBg:    '#3d7877',
-    pinGatewayBorder:'#52d7c6',
+    pinGatewayBorder:'#9E77ED',
   },
   FrameWalker: {
     nodeBodyBg:      '#F8EFDF',
@@ -155,7 +155,7 @@ const MENUS = [
   },
 ];
 
-function TitleBar({ onAction, fileName, fileType, isDirty, recentFiles, onOpenRecent, onClearRecent }) {
+function TitleBar({ onAction, fileName, fileType, isDirty, recentFiles, onOpenRecent, onClearRecent, onUndo, onRedo, canUndo, canRedo, mode }) {
   const [openIdx, setOpenIdx] = React.useState(null);
   const [submenuOpenIdx, setSubmenuOpenIdx] = React.useState(null);
   const [maximized, setMaximized] = React.useState(false);
@@ -246,6 +246,22 @@ function TitleBar({ onAction, fileName, fileType, isDirty, recentFiles, onOpenRe
         ))}
       </div>
 
+      {/* Undo / Redo */}
+      <div className="title-bar-undo">
+        <button
+          className="title-bar-undo-btn"
+          onClick={onUndo}
+          disabled={mode === 'graph' && !canUndo}
+          title="Undo (Ctrl+Z)"
+        >↩</button>
+        <button
+          className="title-bar-undo-btn"
+          onClick={onRedo}
+          disabled={mode === 'graph' && !canRedo}
+          title="Redo (Ctrl+Y)"
+        >↪</button>
+      </div>
+
       {/* Drag area + title */}
       <div
         className="title-bar-drag"
@@ -299,13 +315,16 @@ function buildRootState(navStack, liveNodes, liveEdges) {
   for (let depth = navStack.length - 1; depth > 0; depth--) {
     const enteredId    = navStack[depth].levelId;
     const parentLevel  = navStack[depth - 1];
+    const gateways        = nodes.filter(n => n.id.startsWith('__gateway_'));
+    const pinInPositions  = gateways.filter(n => n.id.startsWith('__gateway_in_')).map(n => n.position);
+    const pinOutPositions = gateways.filter(n => n.id.startsWith('__gateway_out_')).map(n => n.position);
     const persistNodes  = nodes.filter(n => !n.id.startsWith('__gateway_'));
     const regularNodes  = persistNodes.filter(n => n.type === 'flowNode');
     const propertyNodes = persistNodes.filter(n => n.type === 'propertyNode');
 
     nodes = parentLevel.nodes.map(n => {
       if (n.id !== enteredId) return n;
-      let data = { ...n.data, innerNodes: persistNodes, innerEdges: edges, hasProperties: propertyNodes.length > 0 };
+      let data = { ...n.data, innerNodes: persistNodes, innerEdges: edges, hasProperties: propertyNodes.length > 0, pinInPositions, pinOutPositions };
       if (regularNodes.length > 0 && n.data.nodeType !== 'group') {
         data = { ...data, prevNodeType: n.data.nodeType, prevIcon: n.data.icon, nodeType: 'group', icon: NODE_ICONS.group };
       } else if (regularNodes.length === 0 && n.data.nodeType === 'group') {
@@ -410,8 +429,15 @@ export default function App() {
   const [pendingTemplateNode, setPendingTemplateNode] = React.useState(null);
   const [templateDraftName, setTemplateDraftName]     = React.useState('');
   const canvasRef       = React.useRef(null);
+  const codeEditorRef   = React.useRef(null);
   const flowbarInputRef = React.useRef(null);
   const cursorPosRef    = React.useRef(null);
+  const [canUndo, setCanUndo] = React.useState(false);
+  const [canRedo, setCanRedo] = React.useState(false);
+  const preFrameThemeRef = React.useRef(null);
+  const prevFileTypeRef  = React.useRef('flowscript');
+  const prefsThemeRef    = React.useRef(prefs.theme);
+  prefsThemeRef.current  = prefs.theme;
 
   const [navStack, setNavStack] = React.useState([
     { levelId: null, nodes: [], edges: [] },
@@ -455,6 +481,29 @@ export default function App() {
       cursorPosRef.current = null;
     }
   }, [command]);
+
+  React.useEffect(() => {
+    const prev = prevFileTypeRef.current;
+    prevFileTypeRef.current = fileType;
+    if (fileType === 'frame' && prev !== 'frame') {
+      preFrameThemeRef.current = prefsThemeRef.current;
+      setPrefs(p => ({ ...p, theme: 'FrameWalker' }));
+    } else if (fileType === 'flowscript' && prev === 'frame') {
+      const restored = preFrameThemeRef.current ?? 'FlowScript (Default)';
+      preFrameThemeRef.current = null;
+      setPrefs(p => ({ ...p, theme: restored }));
+    }
+  }, [fileType]);
+
+  const handleUndo = React.useCallback(() => {
+    if (mode === 'code') codeEditorRef.current?.undo();
+    else canvasRef.current?.undo();
+  }, [mode]);
+
+  const handleRedo = React.useCallback(() => {
+    if (mode === 'code') codeEditorRef.current?.redo();
+    else canvasRef.current?.redo();
+  }, [mode]);
 
   const handleModeChange = React.useCallback((newMode) => {
     if (newMode === mode) return;
@@ -781,11 +830,18 @@ export default function App() {
       } else if (cmd.command === 'newNote') {
         canvasRef.current?.addNote({ label: cmd.label, noteText: cmd.noteText });
         setIsDirty(true);
-      } else if (cmd.command === 'addShape') {
-        canvasRef.current?.addShape(cmd.shape);
-        setIsDirty(true);
+      } else if (['addPins', 'renameNode', 'addProperty', 'addShape'].includes(cmd.command)) {
+        if (fileType !== 'frame') {
+          if (cmd.command === 'addShape') { canvasRef.current?.addShape(cmd.shape); setIsDirty(true); }
+          else canvasRef.current?.executeCommand(cmd);
+        }
       } else if (cmd.command === 'addNode') {
-        canvasRef.current?.addNode({ label: cmd.label, nodeType: cmd.nodeType, icon: cmd.icon, pinsIn: cmd.pinsIn, pinsOut: cmd.pinsOut });
+        if (fileType === 'frame') {
+          const match = FRAME_NODES.find((n) => n.toLowerCase() === cmd.label.toLowerCase());
+          if (match) { canvasRef.current?.addFrameNode(match); setIsDirty(true); }
+        } else {
+          canvasRef.current?.addNode({ label: cmd.label, nodeType: cmd.nodeType, icon: cmd.icon, pinsIn: cmd.pinsIn, pinsOut: cmd.pinsOut });
+        }
       } else {
         canvasRef.current?.executeCommand(cmd);
       }
@@ -828,18 +884,20 @@ export default function App() {
   }, [handleCommandSubmit, command, cmdHistory, historyIdx, draftCmd]);
 
   const handleEnterNode = React.useCallback((nodeId, currentNodes, currentEdges) => {
-    const entered     = currentNodes.find((n) => n.id === nodeId);
-    const innerNodes  = entered?.data?.innerNodes  || [];
-    const innerEdges  = entered?.data?.innerEdges  || [];
-    const pinsIn      = entered?.data?.pinsIn      ?? 1;
-    const pinsOut     = entered?.data?.pinsOut     ?? 1;
-    const pinInNames  = entered?.data?.pinInNames  || [];
-    const pinOutNames = entered?.data?.pinOutNames || [];
+    const entered      = currentNodes.find((n) => n.id === nodeId);
+    const innerNodes   = entered?.data?.innerNodes   || [];
+    const innerEdges   = entered?.data?.innerEdges   || [];
+    const pinsIn       = entered?.data?.pinsIn       ?? 1;
+    const pinsOut      = entered?.data?.pinsOut      ?? 1;
+    const pinInNames   = entered?.data?.pinInNames   || [];
+    const pinOutNames  = entered?.data?.pinOutNames  || [];
+    const pinInPositions  = entered?.data?.pinInPositions  || [];
+    const pinOutPositions = entered?.data?.pinOutPositions || [];
 
     const inGateways = Array.from({ length: pinsIn }, (_, i) => ({
       id:         `__gateway_in_${i}`,
       type:       'pinGateway',
-      position:   { x: 20, y: 60 + 80 * i },
+      position:   pinInPositions[i] ?? { x: 20, y: 60 + 80 * i },
       draggable:  true,
       selectable: true,
       data:       { side: 'in', label: pinInNames[i] || '' },
@@ -847,7 +905,7 @@ export default function App() {
     const outGateways = Array.from({ length: pinsOut }, (_, i) => ({
       id:         `__gateway_out_${i}`,
       type:       'pinGateway',
-      position:   { x: 860, y: 60 + 80 * i },
+      position:   pinOutPositions[i] ?? { x: 860, y: 60 + 80 * i },
       draggable:  true,
       selectable: true,
       data:       { side: 'out', label: pinOutNames[i] || '' },
@@ -865,6 +923,9 @@ export default function App() {
       const parentIdx = prev.length - 2;
       const enteredId = prev[prev.length - 1].levelId;
 
+      const gateways       = innerNodes.filter((n) => n.id.startsWith('__gateway_'));
+      const pinInPositions  = gateways.filter((n) => n.id.startsWith('__gateway_in_')).map((n) => n.position);
+      const pinOutPositions = gateways.filter((n) => n.id.startsWith('__gateway_out_')).map((n) => n.position);
       const persistNodes  = innerNodes.filter((n) => !n.id.startsWith('__gateway_'));
       const regularNodes  = persistNodes.filter((n) => n.type === 'flowNode');
       const propertyNodes = persistNodes.filter((n) => n.type === 'propertyNode');
@@ -874,7 +935,7 @@ export default function App() {
         nodes: prev[parentIdx].nodes.map((n) => {
           if (n.id !== enteredId) return n;
 
-          let data = { ...n.data, innerNodes: persistNodes, innerEdges, hasProperties: propertyNodes.length > 0 };
+          let data = { ...n.data, innerNodes: persistNodes, innerEdges, hasProperties: propertyNodes.length > 0, pinInPositions, pinOutPositions };
 
           if (regularNodes.length > 0 && n.data.nodeType !== 'group') {
             data = {
@@ -927,6 +988,11 @@ export default function App() {
         recentFiles={recentFiles}
         onOpenRecent={handleOpenRecent}
         onClearRecent={handleClearRecent}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        mode={mode}
       />
 
       {/* FlowBar */}
@@ -987,11 +1053,13 @@ export default function App() {
               onExitLevel={handleExitLevel}
               onDirty={() => setIsDirty(true)}
               onSaveAsTemplate={handleSaveAsTemplate}
+              onUndoChange={(u, r) => { setCanUndo(u); setCanRedo(r); }}
             />
           </ReactFlowProvider>
         )}
         {mode === 'code' && (
           <CodeEditor
+            ref={codeEditorRef}
             value={dslText}
             onChange={(val) => { setDslText(val); if (textFileMode) setIsDirty(true); }}
             language={textFileMode?.language}

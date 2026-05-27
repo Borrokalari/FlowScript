@@ -1,0 +1,85 @@
+{
+  "EngineBlock": "Core mechanical power source for the frame.\nConverts fuel energy into rotational output.\nHigher efficiency reduces thermal output.",
+
+  "Battery": "Stores and discharges electrical energy.\nBuffers power spikes during high-demand operations.\nCapacity degrades with repeated deep discharge cycles.",
+
+  "MechanicalPump": "Circulates hydraulic fluid through the frame's systems.\nRequired for hydraulic actuator and booster operation.\nFlow rate scales with mechanical power input.",
+
+  "AirFilter": "Removes particulates from intake air before combustion.\nDegrades in dusty or toxic atmospheric conditions.\nRequires periodic maintenance in hostile environments.",
+
+  "AirBreather": "Draws atmospheric oxygen for combustion-based systems.\nNon-functional in vacuum or low-oxygen environments.\nImproves engine efficiency in standard atmosphere.",
+
+  "Leg Actuator": "Drives articulated limb movement for locomotion.\nTorque output determines terrain traversal capability.\nOverload causes joint stress and reduced lifespan.",
+
+  "Inventory Container": "Provides internal storage volume for carried items.\nWeight affects frame mobility and power consumption.\nShielded variants resist EMP and environmental damage.",
+
+  "Capacitor Bank": "Accumulates charge for rapid high-power discharge events.\nRequires recharge time between burst activations.\nOver-charging risks arc failure and system damage.",
+
+  "Heat Sink": "Passively dissipates thermal energy into surroundings.\nEfficiency drops as ambient temperature rises.\nCritical for sustained high-output operations.",
+
+  "Radiator": "Actively expels heat using coolant circulation loops.\nRequires pump operation and clear external surface area.\nDamage to fins significantly reduces cooling capacity.",
+
+  "Thermal Buffer": "Absorbs short-duration heat spikes to protect subsystems.\nHolds thermal energy temporarily before gradual release.\nSaturation leads to rapid system-wide temperature rise.",
+
+  "Shield Capacitor": "Powers and sustains the frame's energy shielding layer.\nHigher charge levels extend shield duration under fire.\nRequires full discharge before recharge cycle can begin.",
+
+  "Point Defense Turret": "Autonomously intercepts incoming projectiles and missiles.\nCoverage cone is fixed relative to frame orientation.\nHigh rate of fire drains power and generates heat quickly.",
+
+  "Chaff Dispenser": "Releases metallic particles to confuse tracking systems.\nSingle-use cartridges require manual reloading.\nIneffective against optically-guided or passive seekers.",
+
+  "Hydraulic Booster": "Amplifies actuator force output using hydraulic pressure.\nRequires active pump flow to function.\nEnables mobility over steep gradients and heavy loads.",
+
+  "Gyro Stabilizer": "Maintains frame orientation and resists rotational forces.\nCritical for accuracy during movement and recoil absorption.\nSpin-up time delays effectiveness after activation.",
+
+  "Radar Array": "Detects and tracks nearby objects via radio wave emission.\nRange and resolution scale with power input.\nJammable by hostile ECM emitters at close range.",
+
+  "Thermal Sensor": "Detects heat signatures through environmental obstructions.\nEffective at locating concealed or camouflaged targets.\nPerformance degrades in high-ambient-temperature areas.",
+
+  "LIDAR Scanner": "Maps surrounding geometry using laser pulse reflection.\nHigh-precision spatial data for navigation and targeting.\nBlocked by heavy particulate matter such as smoke or dust.",
+
+  "Navigation Core": "Processes positional data and plots traversal routes.\nIntegrates sensor inputs to maintain situational awareness.\nDegraded inputs cause routing errors and drift.",
+
+  "Comms Transceiver": "Sends and receives encrypted short and long-range signals.\nRequired for coordination with allied units and command.\nSignal strength subject to atmospheric modifier.",
+
+  "Repair Nanoforge": "Deploys nanoscale repair agents to restore structural integrity.\nSelf-repair rate scales with available power and efficiency.\nCannot repair damage faster than it is being received.",
+
+  "Anchor Spike": "Drives a hardened spike into terrain to lock the frame in place.\nPrevents movement but greatly increases weapon stability.\nRetraction takes time and leaves frame immobile briefly.",
+
+  "Subsystem Overdrive": "Temporarily boosts output of linked systems beyond rated limits.\nSignificantly increases heat and power draw during use.\nExtended overdrive risks permanent subsystem degradation.",
+
+  "Reinforced Spine": "Structural core hardening against ballistic and impact stress.\nIncreases overall frame durability and damage threshold.\nAdds mass which reduces agility and power efficiency.",
+
+  "Shock Frame": "Absorbs and disperses kinetic energy from impacts and blasts.\nProtects internal components from concussive damage.\nEffectiveness decreases as structural integrity drops.",
+
+  "Vernier Boosters": "Small directional thrusters for fine positional adjustment.\nEnable airborne maneuvers and rapid lateral repositioning.\nFuel-limited; burn rate scales with thrust demand.",
+
+  "Mini Nuclear Power Plant": "Compact fission reactor providing high sustained power output.\nRequires no conventional fuel but generates constant heat.\nShielding damage risks radiation exposure to nearby systems.",
+
+  "Oxygen Generator": "Produces breathable atmosphere from available source materials.\nRequired for crew survival in vacuum and toxic environments.\nConsumes power proportional to output volume.",
+
+  "Recoil Dampener": "Absorbs and counters weapon recoil forces during firing.\nImproves accuracy for sustained or heavy-caliber weapons.\nMechanical wear increases with cumulative recoil impulse.",
+
+  "Targeting Module": "Provides fire-control data and weapon system coordination.\nImproves projectile lead calculation and lock-on speed.\nSignal modifier affects performance against active jammers.",
+
+  "Weapon Cooling Jacket": "Liquid-cools weapon barrels and firing chambers between shots.\nExtends sustained fire duration before thermal shutdown.\nRequires coolant flow from an active pump system.",
+
+  "Charge Regulator": "Stabilizes and distributes electrical power across systems.\nPrevents voltage spikes from damaging sensitive components.\nOverload condition triggers automatic shutdown to protect systems.",
+
+  "RailGun Core": "Electromagnetic mass driver for high-velocity projectile launch.\nExtreme range and armor penetration at high power cost.\nRequires full capacitor charge before each firing cycle.",
+
+  "HeavyRifle Core": "Large-caliber kinetic slug thrower for heavy engagement.\nHigh single-shot damage with significant recoil generation.\nAmmo capacity limited by internal storage allocation.",
+
+  "AutomaticRifle Core": "Rapid-fire ballistic weapon for sustained suppressive output.\nModerate damage per round with high rate of fire.\nHeat accumulation is the primary operational constraint.",
+
+  "LaserBeam Core": "Continuous-wave laser emitter for precision cutting and targeting.\nDamage sustained as long as beam is held on target.\nAtmospheric conditions significantly affect beam coherence.",
+
+  "LaserPulse Core": "Fires discrete high-energy laser pulses in rapid succession.\nBalances heat output against consistent damage delivery.\nPulse rate adjustable for thermal management.",
+
+  "MissileSingle Core": "Single-launch guided missile system for precision engagement.\nHoming capability depends on active targeting uplink.\nLow sustained damage but effective against armored targets.",
+
+  "MissileBarrage Core": "Multi-tube salvo launcher for area suppression and saturation.\nHigh burst damage across a wide target zone.\nReload cycle limits sustained engagement capability.",
+
+  "PulseCutter Core": "Short-range directed energy weapon for close combat engagement.\nDisrupts electronic systems in addition to physical damage.\nEffective against shields; reduced impact on hardened armor.",
+
+  "Power Distributor": "Routes and prioritizes power flow between all frame subsystems.\nEnables dynamic reallocation under load or damage conditions.\nFailure causes cascade shutdowns across connected systems."
+}
