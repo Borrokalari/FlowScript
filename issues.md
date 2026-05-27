@@ -15,7 +15,6 @@ This document tracks bugs, polish items, and future ideas discovered while using
 (Things that are broken, inconsistent, or not behaving as intended.)
 
 - [ ] Weird bug with edges. might be because legacy save?
-- [ ] Gateway node position not saved
 
 ---
 
@@ -29,8 +28,7 @@ This document tracks bugs, polish items, and future ideas discovered while using
 ## Ideas / Future
 (Explorations, nice-to-haves, or potential features for later versions.)
 
-- [ ] Custom nodes: create entirely new node types
-- [ ] Undo/Redo?
+- [ ] Nothing noted
 
 ---
 
@@ -61,3 +59,11 @@ This document tracks bugs, polish items, and future ideas discovered while using
 - [x] File -> New -> Frame Walker file (.frame)
 - [x] Rename New FlowScript to New .flowscript
 - [x] Rename New Frame to New .frame
+- [x] Reduce shape thickness by 50%
+- [x] Auto set theme to Frame Walker when switching to .frame and set back to whatever theme it was in FlowScript when switching back
+- [x] Hovering over Frame Walker node headers should show a tooltip with a description
+- [x] Titlebar font color too dark
+- [x] Adapt FlowBar to .frame mode
+- [x] Undo/Redo?
+- [x] Gateway node position not saved
+- [x] Shard theme accent color is same as Default FlowScript theme. Should be #9E77ED
