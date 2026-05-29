@@ -21,7 +21,7 @@ This document tracks bugs, polish items, and future ideas discovered while using
 ## Improvements
 (Small UX tweaks, polish, or quality-of-life upgrades.)
 
-- [ ] Free Trial / License key stuff
+- [ ] Free Trial / License key stuff / free .frame mode
 
 ---
 
@@ -67,3 +67,4 @@ This document tracks bugs, polish items, and future ideas discovered while using
 - [x] Undo/Redo?
 - [x] Gateway node position not saved
 - [x] Shard theme accent color is same as Default FlowScript theme. Should be #9E77ED
+- [x] FlowBar Command: babyNode(name) node tiny -> grows to size

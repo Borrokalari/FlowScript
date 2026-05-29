@@ -297,7 +297,21 @@ ipcMain.handle('app:isDevMode', () => {
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   configPath = join(app.getPath('userData'), 'config.json');
-  createWindow();
+  const win = createWindow();
+
+  // Frame Walker integration: if a .frame / .flowscript path is passed as a
+  // CLI argument, open it immediately instead of showing the empty canvas.
+  const fileArg = process.argv.find(
+    a => (a.endsWith('.frame') || a.endsWith('.flowscript')) && existsSync(a)
+  );
+  if (fileArg) {
+    try {
+      pendingInitContent.set(win.webContents.id, readFileSync(fileArg, 'utf-8'));
+      windowFilePaths.set(win.webContents.id, fileArg);
+      addToRecent(fileArg);
+    } catch { /* ignore */ }
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
