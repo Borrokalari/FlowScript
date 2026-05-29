@@ -461,12 +461,38 @@
 }
 
 .fp-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #F88E30;
   border-bottom: 1px solid #2e3340;
   padding-bottom: 6px;
+}
+
+.fp-group-toggle {
+  background: none;
+  border: 1px solid #3a4052;
+  border-radius: 3px;
+  color: #555;
+  font-size: 13px;
+  line-height: 1;
+  padding: 1px 6px 2px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.fp-group-toggle:hover {
+  border-color: #F88E30;
+  color: #F88E30;
+}
+
+.fp-group-toggle--active {
+  background: rgba(248, 142, 48, 0.15);
+  border-color: #F88E30;
+  color: #F88E30;
 }
 
 .fp-search {
@@ -529,6 +555,44 @@
   color: #555;
   font-size: 12px;
   padding: 12px 0;
+}
+
+.fp-grouped {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.fp-grouped::-webkit-scrollbar { width: 6px; }
+.fp-grouped::-webkit-scrollbar-track { background: #111; }
+.fp-grouped::-webkit-scrollbar-thumb { background: #3a4052; border-radius: 3px; }
+
+.fp-category {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fp-category-header {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fw-type-color, #888);
+  padding: 8px 2px 3px;
+  border-bottom: 1px solid var(--fw-type-color, #3a4052);
+  opacity: 0.9;
+}
+
+.fp-category:first-child .fp-category-header {
+  padding-top: 2px;
+}
+
+.fp-grid--nosroll {
+  max-height: none;
+  overflow: visible;
 }
 
 .modal-input--locked {
@@ -1855,12 +1919,38 @@
   background: #2b2f33;
   border: 1px solid #555;
   border-radius: 5px;
-  width: 560px;
+  width: 900px;
   max-width: 95vw;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
   font-family: 'JetBrains Mono', monospace;
   color: #e0e0e0;
   overflow: hidden;
+}
+
+.help-body {
+  display: flex;
+  align-items: stretch;
+}
+
+.help-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.help-col-header {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #F88E30;
+  padding: 8px 14px 6px;
+  border-bottom: 1px solid #3d4349;
+}
+
+.help-col-divider {
+  width: 1px;
+  background: #3d4349;
+  flex-shrink: 0;
 }
 
 .help-header {

@@ -382,6 +382,9 @@ function parseCommand(input) {
   m = t.match(/^cookNode\(([^)]*)\)$/i);
   if (m) return { command: 'cookNode', name: m[1].trim() };
 
+  m = t.match(/^babyNode\(([^)]*)\)$/i);
+  if (m) return { command: 'babyNode', name: m[1].trim() };
+
   m = t.match(/^newNote\(([^)]*)\)(?:\s*:\s*(.*))?$/i);
   if (m) return { command: 'newNote', label: m[1].trim() || 'note', noteText: m[2]?.trim() ?? '' };
 
@@ -827,11 +830,21 @@ export default function App() {
         const live = canvasRef.current?.getState();
         const node = live?.nodes.find((n) => n.data?.label === cmd.name);
         if (node) canvasRef.current?.cookNode(node.id);
+      } else if (cmd.command === 'babyNode') {
+        if (fileType === 'frame') {
+          const match = FRAME_NODES.find((n) => n.toLowerCase() === cmd.name.toLowerCase());
+          if (match) { canvasRef.current?.babyNode(match, true); setIsDirty(true); }
+        } else {
+          canvasRef.current?.babyNode(cmd.name, false);
+          setIsDirty(true);
+        }
       } else if (cmd.command === 'newNote') {
         canvasRef.current?.addNote({ label: cmd.label, noteText: cmd.noteText });
         setIsDirty(true);
       } else if (['addPins', 'renameNode', 'addProperty', 'addShape'].includes(cmd.command)) {
-        if (fileType !== 'frame') {
+        if (fileType === 'frame') {
+          if (cmd.command === 'renameNode') { canvasRef.current?.executeCommand(cmd); setIsDirty(true); }
+        } else {
           if (cmd.command === 'addShape') { canvasRef.current?.addShape(cmd.shape); setIsDirty(true); }
           else canvasRef.current?.executeCommand(cmd);
         }
@@ -847,7 +860,7 @@ export default function App() {
       }
     }
     setCommand('');
-  }, [command]);
+  }, [command, fileType]);
 
   const handleFlowBarKeyDown = React.useCallback((e) => {
     if (e.key === 'Enter') { handleCommandSubmit(); return; }
@@ -1324,27 +1337,41 @@ export default function App() {
               <span>FlowBar Commands</span>
               <button className="help-close" onClick={() => setShowHelp(false)}>×</button>
             </div>
-            <table className="help-table">
-              <tbody>
-                <tr><td><code>name</code></td><td>Create a node (1 in, 1 out)</td></tr>
-                <tr><td><code>addNode(name)</code></td><td>Create an action node</td></tr>
-                <tr><td><code>newNote(name) : text</code></td><td>Create a note node with optional text</td></tr>
-                <tr><td><code>deleteNode(name)</code></td><td>Delete a node by name</td></tr>
-                <tr><td><code>addPins(name) : in N, out N</code></td><td>Add N in and N out pins to a node</td></tr>
-                <tr><td><code>addProperty(name)</code></td><td>Add a property inside a node</td></tr>
-                <tr><td><code>changeType(name) : type</code></td><td>Change type — action / condition / data / event</td></tr>
-                <tr><td><code>renameNode(name) : new name</code></td><td>Rename a node</td></tr>
-                <tr><td><code>zoomNode(name)</code></td><td>Zoom to a specific node by name</td></tr>
-                <tr><td><code>zoomNode(all)</code></td><td>Zoom to fit all nodes in view</td></tr>
-                <tr><td><code>saveTemplate(name)</code></td><td>Save node by name as a template</td></tr>
-                <tr><td><code>copyNode(name)</code></td><td>Copy a node by name to clipboard</td></tr>
-                <tr><td><code>pasteLastNode</code></td><td>Paste the last copied node</td></tr>
-                <tr><td><code>addShape(shape)</code></td><td>Add a box or circle shape (not in CODE mode)</td></tr>
-                <tr><td><code>newTheme(name)</code></td><td>Create a custom node theme</td></tr>
-                <tr><td><code>cookNode(name)</code></td><td>Cooks the node???</td></tr>
-                <tr><td><code>showHelp</code></td><td>Show this window</td></tr>
-              </tbody>
-            </table>
+            <div className="help-body">
+              <div className="help-col">
+                <div className="help-col-header">Create &amp; Edit</div>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>name</code></td><td>Create a node (1 in, 1 out)</td></tr>
+                    <tr><td><code>addNode(name)</code></td><td>Create an action node</td></tr>
+                    <tr><td><code>newNote(name) : text</code></td><td>Create a note with optional text</td></tr>
+                    <tr><td><code>deleteNode(name)</code></td><td>Delete a node by name</td></tr>
+                    <tr><td><code>renameNode(name) : new name</code></td><td>Rename a node</td></tr>
+                    <tr><td><code>changeType(name) : type</code></td><td>Change type — action / condition / data / event</td></tr>
+                    <tr><td><code>addPins(name) : in N, out N</code></td><td>Add N in and N out pins</td></tr>
+                    <tr><td><code>addProperty(name)</code></td><td>Add a property inside a node</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div className="help-col-divider" />
+              <div className="help-col">
+                <div className="help-col-header">Canvas &amp; Fun</div>
+                <table className="help-table">
+                  <tbody>
+                    <tr><td><code>zoomNode(name)</code></td><td>Zoom to a specific node</td></tr>
+                    <tr><td><code>zoomNode(all)</code></td><td>Zoom to fit all nodes in view</td></tr>
+                    <tr><td><code>copyNode(name)</code></td><td>Copy a node to clipboard</td></tr>
+                    <tr><td><code>pasteLastNode</code></td><td>Paste the last copied node</td></tr>
+                    <tr><td><code>saveTemplate(name)</code></td><td>Save node as a template</td></tr>
+                    <tr><td><code>addShape(shape)</code></td><td>Add a box or circle shape</td></tr>
+                    <tr><td><code>newTheme(name)</code></td><td>Create a custom node theme</td></tr>
+                    <tr><td><code>cookNode(name)</code></td><td>Cooks the node???</td></tr>
+                    <tr><td><code>babyNode(name)</code></td><td>baby node???</td></tr>
+                    <tr><td><code>showHelp</code></td><td>Show this window</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -128,10 +128,17 @@ export const FRAME_NODES = [
   'LIDAR Scanner', 'Navigation Core', 'Comms Transceiver', 'Repair Nanoforge',
   'Anchor Spike', 'Subsystem Overdrive', 'Reinforced Spine', 'Shock Frame',
   'Vernier Boosters', 'Mini Nuclear Power Plant', 'Oxygen Generator',
+  'Fuel Tank', 'Coolant Tank',
   'Recoil Dampener', 'Targeting Module', 'Weapon Cooling Jacket',
   'Charge Regulator', 'RailGun Core', 'HeavyRifle Core', 'AutomaticRifle Core',
   'LaserBeam Core', 'LaserPulse Core', 'MissileSingle Core', 'MissileBarrage Core',
-  'PulseCutter Core', 'Power Distributor',
+  'PulseCutter Core', 'Light Barrel', 'Long Barrel', 'Heavy Barrel',
+  'Power Distributor',
+  'Hand HardPoint', 'Shoulder HardPoint', 'Forearm Hardpoint', 'Backpack Hardpoint',
+  'Torso Mechanical Hardpoint', 'Waist Mechanical Hardpoint',
+  'L Arm Mechanical Hardpoint', 'R Arm Mechanical Hardpoint',
+  'L Leg Mechanical Hardpoint', 'R Leg Mechanical Hardpoint',
+  'Head Mechanical Hardpoint', 'Backpack Mechanical Hardpoint',
 ];
 
 const FW_TYPE_COLORS = {
@@ -143,6 +150,7 @@ const FW_TYPE_COLORS = {
   Defense:    '#7d3c98',
   Weapon:     '#d35400',
   Utility:    '#6d4c41',
+  Hardpoint:  '#5d6d7e',
 };
 
 const FW_NODE_TYPE_MAP = {
@@ -158,7 +166,7 @@ const FW_NODE_TYPE_MAP = {
   'Weapon Cooling Jacket': 'Thermal',
   // Fluid
   'MechanicalPump': 'Fluid', 'AirFilter': 'Fluid', 'AirBreather': 'Fluid',
-  'Oxygen Generator': 'Fluid',
+  'Oxygen Generator': 'Fluid', 'Fuel Tank': 'Fluid', 'Coolant Tank': 'Thermal',
   // Sensor
   'Radar Array': 'Sensor', 'Thermal Sensor': 'Sensor', 'LIDAR Scanner': 'Sensor',
   'Navigation Core': 'Sensor', 'Comms Transceiver': 'Sensor', 'Targeting Module': 'Sensor',
@@ -168,9 +176,17 @@ const FW_NODE_TYPE_MAP = {
   // Weapon
   'RailGun Core': 'Weapon', 'HeavyRifle Core': 'Weapon', 'AutomaticRifle Core': 'Weapon',
   'LaserBeam Core': 'Weapon', 'LaserPulse Core': 'Weapon', 'MissileSingle Core': 'Weapon',
-  'MissileBarrage Core': 'Weapon',
+  'MissileBarrage Core': 'Weapon', 'Light Barrel': 'Weapon', 'Long Barrel': 'Weapon',
+  'Heavy Barrel': 'Weapon',
   // Utility
   'Inventory Container': 'Utility', 'Repair Nanoforge': 'Utility', 'PulseCutter Core': 'Utility',
+  // Hardpoint
+  'Hand HardPoint': 'Hardpoint', 'Shoulder HardPoint': 'Hardpoint',
+  'Forearm Hardpoint': 'Hardpoint', 'Backpack Hardpoint': 'Hardpoint',
+  'Torso Mechanical Hardpoint': 'Hardpoint', 'Waist Mechanical Hardpoint': 'Hardpoint',
+  'L Arm Mechanical Hardpoint': 'Hardpoint', 'R Arm Mechanical Hardpoint': 'Hardpoint',
+  'L Leg Mechanical Hardpoint': 'Hardpoint', 'R Leg Mechanical Hardpoint': 'Hardpoint',
+  'Head Mechanical Hardpoint': 'Hardpoint', 'Backpack Mechanical Hardpoint': 'Hardpoint',
 };
 
 const FW_MODIFIER_DISPLAY = {
@@ -226,18 +242,74 @@ const FW_PIN_CONFIG = {
   'Weapon Cooling Jacket': { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Cool'],        pinOutNames: ['Out'] },
   'Subsystem Overdrive':   { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Cool'],        pinOutNames: ['Out'] },
   'Power Distributor':     { pinsIn: 1, pinsOut: 1, pinInNames: ['In'],                pinOutNames: ['Out 1'] },
+  'Light Barrel':          { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],                pinOutNames: [] },
+  'Long Barrel':           { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],                pinOutNames: [] },
+  'Heavy Barrel':          { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],                pinOutNames: [] },
+  'Fuel Tank':             { pinsIn: 0, pinsOut: 1, pinInNames: [],                         pinOutNames: ['Fuel'] },
+  'Coolant Tank':          { pinsIn: 0, pinsOut: 1, pinInNames: [],                         pinOutNames: ['Cool'] },
+  'RailGun Core':          { pinsIn: 3, pinsOut: 1, pinInNames: ['In', 'Pwr', 'Ammo'],      pinOutNames: ['Out'] },
+  'HeavyRifle Core':       { pinsIn: 2, pinsOut: 1, pinInNames: ['In', 'Ammo'],             pinOutNames: ['Out'] },
+  'AutomaticRifle Core':   { pinsIn: 3, pinsOut: 1, pinInNames: ['In', 'Pwr', 'Ammo'],      pinOutNames: ['Out'] },
+  'LaserBeam Core':        { pinsIn: 3, pinsOut: 1, pinInNames: ['In', 'Pwr', 'Aux'],       pinOutNames: ['Out'] },
+  'LaserPulse Core':       { pinsIn: 3, pinsOut: 1, pinInNames: ['In', 'Pwr', 'Aux'],       pinOutNames: ['Out'] },
+  'MissileSingle Core':    { pinsIn: 3, pinsOut: 1, pinInNames: ['In', 'Pwr', 'Ammo'],      pinOutNames: ['Out'] },
+  'MissileBarrage Core':   { pinsIn: 3, pinsOut: 1, pinInNames: ['In', 'Pwr', 'Ammo'],      pinOutNames: ['Out'] },
+  'PulseCutter Core':               { pinsIn: 3, pinsOut: 1, pinInNames: ['In', 'Pwr', 'Aux'], pinOutNames: ['Out'] },
+  'Hand HardPoint':                 { pinsIn: 0, pinsOut: 1, pinInNames: [],                   pinOutNames: ['Out'] },
+  'Shoulder HardPoint':             { pinsIn: 0, pinsOut: 1, pinInNames: [],                   pinOutNames: ['Out'] },
+  'Forearm Hardpoint':              { pinsIn: 0, pinsOut: 1, pinInNames: [],                   pinOutNames: ['Out'] },
+  'Backpack Hardpoint':             { pinsIn: 0, pinsOut: 1, pinInNames: [],                   pinOutNames: ['Out'] },
+  'Torso Mechanical Hardpoint':     { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],               pinOutNames: [] },
+  'Waist Mechanical Hardpoint':     { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],               pinOutNames: [] },
+  'L Arm Mechanical Hardpoint':     { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],               pinOutNames: [] },
+  'R Arm Mechanical Hardpoint':     { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],               pinOutNames: [] },
+  'L Leg Mechanical Hardpoint':     { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],               pinOutNames: [] },
+  'R Leg Mechanical Hardpoint':     { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],               pinOutNames: [] },
+  'Head Mechanical Hardpoint':      { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],               pinOutNames: [] },
+  'Backpack Mechanical Hardpoint':  { pinsIn: 1, pinsOut: 0, pinInNames: ['In'],               pinOutNames: [] },
 };
 
 const FW_PIN_DEFAULT = { pinsIn: 1, pinsOut: 1, pinInNames: ['In'], pinOutNames: ['Out'] };
 
+const FW_BARREL_NODES    = ['Light Barrel', 'Long Barrel', 'Heavy Barrel'];
+const FW_TANK_NODES      = ['Fuel Tank', 'Coolant Tank'];
+const FW_HARDPOINT_NODES = [
+  'Hand HardPoint', 'Shoulder HardPoint', 'Forearm Hardpoint', 'Backpack Hardpoint',
+  'Torso Mechanical Hardpoint', 'Waist Mechanical Hardpoint',
+  'L Arm Mechanical Hardpoint', 'R Arm Mechanical Hardpoint',
+  'L Leg Mechanical Hardpoint', 'R Leg Mechanical Hardpoint',
+  'Head Mechanical Hardpoint', 'Backpack Mechanical Hardpoint',
+];
+
+const FW_CATEGORY_ORDER = ['Power', 'Mechanical', 'Thermal', 'Fluid', 'Sensor', 'Defense', 'Weapon', 'Utility', 'Hardpoint'];
+
+function buildGroupedNodes() {
+  const groups = {};
+  for (const name of FRAME_NODES) {
+    if (name === 'Group') continue;
+    const cat = FW_NODE_TYPE_MAP[name] ?? 'Other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(name);
+  }
+  const order = [...FW_CATEGORY_ORDER, 'Other'];
+  return order.filter((c) => groups[c]).map((c) => ({ category: c, nodes: groups[c] }));
+}
+
+const FW_GROUPED_NODES = buildGroupedNodes();
+
 function FramePalette({ onAdd }) {
-  const [open, setOpen]   = React.useState(false);
-  const [query, setQuery] = React.useState('');
-  const wrapRef           = React.useRef(null);
+  const [open,    setOpen]    = React.useState(false);
+  const [query,   setQuery]   = React.useState('');
+  const [grouped, setGrouped] = React.useState(
+    () => localStorage.getItem('fp-grouped') !== 'false'
+  );
+  const wrapRef               = React.useRef(null);
 
   const filtered = query.trim()
     ? FRAME_NODES.filter((n) => n.toLowerCase().includes(query.toLowerCase()))
     : FRAME_NODES;
+
+  const showGrouped = grouped && !query.trim();
 
   React.useEffect(() => {
     if (!open) return;
@@ -247,6 +319,20 @@ function FramePalette({ onAdd }) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  const renderItem = (name) => {
+    const typeColor = FW_TYPE_COLORS[FW_NODE_TYPE_MAP[name]];
+    return (
+      <button
+        key={name}
+        className="fp-item"
+        style={typeColor ? { '--fw-type-color': typeColor } : undefined}
+        onClick={() => { onAdd(name); setOpen(false); setQuery(''); }}
+      >
+        {name}
+      </button>
+    );
+  };
 
   return (
     <div className="fp-wrap nodrag" ref={wrapRef}>
@@ -258,7 +344,19 @@ function FramePalette({ onAdd }) {
       </button>
       {open && (
         <div className="fp-panel">
-          <div className="fp-panel-header">Select Node</div>
+          <div className="fp-panel-header">
+            Select Node
+            <button
+              className={`fp-group-toggle${grouped ? ' fp-group-toggle--active' : ''}`}
+              onClick={() => setGrouped((v) => {
+                localStorage.setItem('fp-grouped', String(!v));
+                return !v;
+              })}
+              title="Group by category"
+            >
+              ⊟
+            </button>
+          </div>
           <input
             className="fp-search"
             placeholder="Search…"
@@ -266,24 +364,27 @@ function FramePalette({ onAdd }) {
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
           />
-          <div className="fp-grid">
-            {filtered.length === 0
-              ? <div className="fp-empty">No results</div>
-              : filtered.map((name) => {
-                  const typeColor = FW_TYPE_COLORS[FW_NODE_TYPE_MAP[name]];
-                  return (
-                    <button
-                      key={name}
-                      className="fp-item"
-                      style={typeColor ? { '--fw-type-color': typeColor } : undefined}
-                      onClick={() => { onAdd(name); setOpen(false); setQuery(''); }}
-                    >
-                      {name}
-                    </button>
-                  );
-                })
-            }
-          </div>
+          {showGrouped ? (
+            <div className="fp-grouped">
+              {FW_GROUPED_NODES.map(({ category, nodes: catNodes }) => (
+                <div key={category} className="fp-category">
+                  <div className="fp-category-header" style={{ '--fw-type-color': FW_TYPE_COLORS[category] }}>
+                    {category}
+                  </div>
+                  <div className="fp-grid fp-grid--nosroll">
+                    {catNodes.map(renderItem)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="fp-grid">
+              {filtered.length === 0
+                ? <div className="fp-empty">No results</div>
+                : filtered.map(renderItem)
+              }
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -357,6 +458,124 @@ function findFreePosition(existingNodes, newW, newH, startX, startY) {
 const FW_BASE_RATE = 5;
 
 function FrameNodeBody({ id, data, onUpdateNodeData, isDevMode, onAddOutPin, onRemoveOutPin }) {
+  const isBarrel     = FW_BARREL_NODES.includes(data.label);
+  const isTankNode   = FW_TANK_NODES.includes(data.label);
+  const isHardpoint  = FW_HARDPOINT_NODES.includes(data.label);
+
+  if (isHardpoint) {
+    const active   = data.fwActive   ?? true;
+    const flowRate = data.fwFlowRate ?? null;
+    return (
+      <div className="fw-node-body nodrag" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="fw-props-header">
+          {data.label} Properties
+          {data.fwNodeType && (
+            <span className="fw-type-badge" style={{ '--fw-type-color': FW_TYPE_COLORS[data.fwNodeType] }}>
+              {data.fwNodeType}
+            </span>
+          )}
+          {isDevMode && <span className="fw-dev-badge">DEV</span>}
+        </div>
+        <div className="fw-props-content">
+          <div className="fw-props-left">
+            <div className="fw-prop-row">
+              <span className="fw-prop-label">Active?</span>
+              <input type="checkbox" className="fw-prop-checkbox" checked={active}
+                onChange={(e) => onUpdateNodeData(id, { fwActive: e.target.checked })} />
+            </div>
+            {isDevMode && (
+              <div className="fw-prop-row">
+                <span className="fw-prop-label">Flow Rate:</span>
+                <input type="number" className="fw-prop-text-input fw-prop-factor-input"
+                  placeholder="∞" value={flowRate ?? ''} min={0} step={1}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    onUpdateNodeData(id, { fwFlowRate: raw === '' ? null : (parseFloat(raw) || null) });
+                  }} />
+                <span className="fw-prop-factor-hint">{flowRate === null ? 'Unlimited' : 'u/s'}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isBarrel || isTankNode) {
+    const active    = data.fwActive   ?? true;
+    const health    = data.fwHealth   ?? 100;
+    const quantity  = data.fwQuantity ?? 100;
+    const flowRate  = data.fwFlowRate ?? null;
+    return (
+      <div className="fw-node-body nodrag" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="fw-props-header">
+          {data.label} Properties
+          {data.fwNodeType && (
+            <span className="fw-type-badge" style={{ '--fw-type-color': FW_TYPE_COLORS[data.fwNodeType] }}>
+              {data.fwNodeType}
+            </span>
+          )}
+          {isDevMode && <span className="fw-dev-badge">DEV</span>}
+        </div>
+        <div className="fw-props-content">
+          <div className="fw-props-left">
+            <div className="fw-prop-row">
+              <span className="fw-prop-label">Active?</span>
+              <input type="checkbox" className="fw-prop-checkbox" checked={active}
+                onChange={(e) => onUpdateNodeData(id, { fwActive: e.target.checked })} />
+            </div>
+            {isTankNode && (
+              <div className="fw-prop-row">
+                <span className="fw-prop-label">Quantity:</span>
+                {isDevMode ? (
+                  <>
+                    <input type="number" className="fw-prop-text-input fw-prop-factor-input"
+                      value={quantity} min={0} max={100} step={1}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val)) onUpdateNodeData(id, { fwQuantity: Math.min(100, Math.max(0, val)) });
+                      }} />
+                    <span className="fw-prop-factor-hint">%</span>
+                  </>
+                ) : (
+                  <input type="text" className="fw-prop-text-input" value={`${quantity}%`} readOnly disabled />
+                )}
+              </div>
+            )}
+            {isDevMode && (
+              <div className="fw-prop-row">
+                <span className="fw-prop-label">Flow Rate:</span>
+                <input type="number" className="fw-prop-text-input fw-prop-factor-input"
+                  placeholder="∞" value={flowRate ?? ''} min={0} step={1}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    onUpdateNodeData(id, { fwFlowRate: raw === '' ? null : (parseFloat(raw) || null) });
+                  }} />
+                <span className="fw-prop-factor-hint">{flowRate === null ? 'Unlimited' : 'u/s'}</span>
+              </div>
+            )}
+          </div>
+          <div className="fw-props-divider" />
+          <div className="fw-props-right">
+            <div className="fw-prop-row">
+              <span className="fw-prop-label">Health:</span>
+              {isDevMode ? (
+                <input type="number" className="fw-prop-text-input fw-prop-factor-input"
+                  value={health} min={0} max={100} step={1}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val)) onUpdateNodeData(id, { fwHealth: Math.min(100, Math.max(0, val)) });
+                  }} />
+              ) : (
+                <input type="text" className="fw-prop-text-input" value={`${health}%`} readOnly disabled />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const active         = data.fwActive         ?? true;
   const efficiency     = data.fwEfficiency     ?? 100;
   const health         = data.fwHealth         ?? 100;
@@ -532,7 +751,7 @@ function FrameNodeBody({ id, data, onUpdateNodeData, isDevMode, onAddOutPin, onR
 
 // ─── FlowNode ────────────────────────────────────────────────────────────────
 
-function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate, onDuplicateNode, onUpdateNodeData, isDevMode, onAddOutPin, onRemoveOutPin }) {
+function FlowNode({ id, data, dragging, onDeleteNode, onEditNode, onAddPins, onRenamePinName, onEnterNode, onSaveAsTemplate, onDuplicateNode, onUpdateNodeData, isDevMode, onAddOutPin, onRemoveOutPin }) {
   const [menuOpen,      setMenuOpen]      = React.useState(false);
   const [editingPin,    setEditingPin]    = React.useState(null);
   const [tooltipVisible, setTooltipVisible] = React.useState(false);
@@ -548,6 +767,13 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
     clearTimeout(tooltipTimer.current);
     setTooltipVisible(false);
   }, []);
+
+  React.useEffect(() => {
+    if (dragging) {
+      clearTimeout(tooltipTimer.current);
+      setTooltipVisible(false);
+    }
+  }, [dragging]);
 
   const isLocked          = !!data.locked;
   const isLockedComponent = isLocked && data.nodeType !== 'group';
@@ -584,6 +810,8 @@ function FlowNode({ id, data, onDeleteNode, onEditNode, onAddPins, onRenamePinNa
         width,
         height,
         filter: data._cookProgress > 0 ? `sepia(${Math.min(data._cookProgress * 2, 1)}) brightness(${1 - data._cookProgress})` : undefined,
+        transform: data._babyProgress !== undefined ? `scale(${(0.05 + 0.95 * data._babyProgress).toFixed(3)})` : undefined,
+        transformOrigin: 'center center',
         ...(isLockedComponent && data.fwNodeType ? { '--fw-type-color': FW_TYPE_COLORS[data.fwNodeType] } : {}),
       }}
       data-drag-handle
@@ -1108,8 +1336,9 @@ function PropertyNode({ id, data, onDeleteProperty, onChangePropertyType, onUpda
 // ─── EditModal ────────────────────────────────────────────────────────────────
 
 function EditModal({ node, onSave, onClose }) {
-  const isNote   = node.type === 'noteNode';
-  const isLocked = !!node.data?.locked;
+  const isNote      = node.type === 'noteNode';
+  const isGroup     = node.data?.nodeType === 'group';
+  const isLocked    = !!node.data?.locked && !isGroup;
 
   const [label,    setLabel]    = React.useState(node.data.label);
   const [noteText, setNoteText] = React.useState(node.data.noteText ?? '');
@@ -1300,6 +1529,68 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
       ]);
     },
     addFrameNode: (label) => addFrameNode(label),
+    babyNode: (label, asFrame) => {
+      pushUndo();
+      const newId  = crypto.randomUUID();
+      const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+
+      let nodeData, w, h;
+      if (asFrame) {
+        const isGroup      = label === 'Group';
+        const pinCfg       = FW_PIN_CONFIG[label] ?? FW_PIN_DEFAULT;
+        const isPowerDist  = label === 'Power Distributor';
+        const isBarrelNode    = FW_BARREL_NODES.includes(label);
+        const isTankNode      = FW_TANK_NODES.includes(label);
+        const isHardpointNode = FW_HARDPOINT_NODES.includes(label);
+        const isSimple        = isBarrelNode || isTankNode || isHardpointNode;
+        w = isGroup ? computeNodeWidth('Group') : FW_NODE_WIDTH;
+        h = isGroup ? computeNodeHeight(1, 1) : isPowerDist
+          ? FW_NODE_HEIGHT + Math.max(0, pinCfg.pinsOut - 5) * 30
+          : FW_NODE_HEIGHT;
+        nodeData = isGroup
+          ? { label: 'Group', nodeType: 'group', icon: group_icon, pinsIn: 1, pinsOut: 1, locked: true }
+          : {
+              label, nodeType: 'action', icon: action_icon, ...pinCfg, locked: true,
+              fwNodeType: FW_NODE_TYPE_MAP[label] ?? null,
+              fwActive: true, fwHealth: 100,
+              ...(isTankNode ? { fwQuantity: 100 } : {}),
+              ...(!isSimple ? {
+                fwModifierName:  FW_NODE_MODIFIER_MAP[label]?.name        ?? null,
+                fwModifierValue: FW_NODE_MODIFIER_MAP[label]?.defaultValue ?? null,
+                fwEfficiency: 100, fwInputFactor: 1.0,
+              } : {}),
+            };
+      } else {
+        const lbl = label || 'new node';
+        w = computeNodeWidth(lbl);
+        h = computeNodeHeight(1, 1);
+        nodeData = { label: lbl, nodeType: 'action', icon: action_icon, pinsIn: 1, pinsOut: 1 };
+      }
+
+      const position = findFreePosition(nodesRef.current, w, h, center.x, center.y);
+      setNodes((nds) => [...nds, { id: newId, type: 'flowNode', position, data: { ...nodeData, _babyProgress: 0 } }]);
+      onDirty?.();
+
+      const duration = 2000;
+      const startTime = performance.now();
+      const tick = (now) => {
+        const raw   = Math.min((now - startTime) / duration, 1);
+        const eased = 1 - Math.pow(1 - raw, 3);
+        setNodes((nds) => nds.map((n) =>
+          n.id === newId ? { ...n, data: { ...n.data, _babyProgress: eased } } : n
+        ));
+        if (raw < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          setNodes((nds) => nds.map((n) => {
+            if (n.id !== newId) return n;
+            const { _babyProgress, ...rest } = n.data;
+            return { ...n, data: rest };
+          }));
+        }
+      };
+      requestAnimationFrame(tick);
+    },
     cookNode: (nodeId) => {
       const duration  = 2500;
       const startTime = performance.now();
@@ -1462,7 +1753,7 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
 
       else if (cmd.command === 'renameNode') {
         const t = byName(cmd.name);
-        if (!t || t.data?.locked) return;
+        if (!t || (t.data?.locked && t.data?.nodeType !== 'group')) return;
         pushUndo();
         setNodes(nds => nds.map(n => n.id !== t.id ? n : {
           ...n, data: { ...n.data, label: cmd.newName },
@@ -1705,21 +1996,28 @@ const FlowCanvas = React.forwardRef(function FlowCanvas(
     const w = isGroup ? computeNodeWidth('Group') : FW_NODE_WIDTH;
     const h = isGroup ? computeNodeHeight(1, 1) : isPowerDist ? FW_NODE_HEIGHT + Math.max(0, pinCfg.pinsOut - 5) * 30 : FW_NODE_HEIGHT;
     const position = findFreePosition(nodesRef.current, w, h, center.x, center.y);
+    const isBarrelNode    = FW_BARREL_NODES.includes(label);
+    const isTankNode      = FW_TANK_NODES.includes(label);
+    const isHardpointNode = FW_HARDPOINT_NODES.includes(label);
+    const isSimple        = isBarrelNode || isTankNode || isHardpointNode;
     const data = isGroup
       ? { label: 'Group', nodeType: 'group', icon: group_icon, pinsIn: 1, pinsOut: 1, locked: true }
       : {
           label,
-          nodeType:      'action',
-          icon:          action_icon,
+          nodeType:  'action',
+          icon:      action_icon,
           ...pinCfg,
-          locked:           true,
-          fwNodeType:       FW_NODE_TYPE_MAP[label]               ?? null,
-          fwModifierName:   FW_NODE_MODIFIER_MAP[label]?.name     ?? null,
-          fwModifierValue:  FW_NODE_MODIFIER_MAP[label]?.defaultValue ?? null,
-          fwActive:         true,
-          fwEfficiency:     100,
-          fwHealth:         100,
-          fwInputFactor:    1.0,
+          locked:    true,
+          fwNodeType:   FW_NODE_TYPE_MAP[label]                  ?? null,
+          fwActive:     true,
+          ...(!isHardpointNode ? { fwHealth: 100 } : {}),
+          ...(isTankNode ? { fwQuantity: 100 } : {}),
+          ...(!isSimple ? {
+            fwModifierName:  FW_NODE_MODIFIER_MAP[label]?.name        ?? null,
+            fwModifierValue: FW_NODE_MODIFIER_MAP[label]?.defaultValue ?? null,
+            fwEfficiency:    100,
+            fwInputFactor:   1.0,
+          } : {}),
         };
 
     setNodes((nds) => [

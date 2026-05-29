@@ -81,5 +81,39 @@
 
   "PulseCutter Core": "Short-range directed energy weapon for close combat engagement.\nDisrupts electronic systems in addition to physical damage.\nEffective against shields; reduced impact on hardened armor.",
 
-  "Power Distributor": "Routes and prioritizes power flow between all frame subsystems.\nEnables dynamic reallocation under load or damage conditions.\nFailure causes cascade shutdowns across connected systems."
+  "Power Distributor": "Routes and prioritizes power flow between all frame subsystems.\nEnables dynamic reallocation under load or damage conditions.\nFailure causes cascade shutdowns across connected systems.",
+
+  "Light Barrel": "Compact barrel attachment for lightweight weapon cores.\nReduces recoil at the cost of effective range and stopping power.\nRequired to complete a weapon core into an active weapon.",
+
+  "Long Barrel": "Extended barrel improving projectile velocity and engagement range.\nIncreases accuracy at distance but adds weight to the frame.\nRequired to complete a weapon core into an active weapon.",
+
+  "Heavy Barrel": "Reinforced barrel built for sustained high-caliber fire.\nImproves damage output and durability under prolonged use.\nRequired to complete a weapon core into an active weapon.",
+
+  "Fuel Tank": "On-frame pressurized vessel storing combustible fuel reserves.\nSupplies engine and propulsion systems on demand.\nOutput rate is unlimited — delivers as fast as connected systems require.",
+
+  "Coolant Tank": "Pressurized reservoir of thermal coolant fluid.\nFeeds cooling circuits throughout the frame's thermal network.\nOutput rate is unlimited — delivers as fast as connected systems require.",
+
+  "Hand HardPoint": "Physical mounting socket located on the frame's hand.\nAccepts weapon cores for direct handheld engagement.\nFlow is unlimited — passes signal at whatever rate the weapon demands.",
+
+  "Shoulder HardPoint": "Elevated mounting socket on the frame's shoulder assembly.\nSuited for heavy or long-range weapon cores.\nFlow is unlimited — passes signal at whatever rate the weapon demands.",
+
+  "Forearm Hardpoint": "Secondary attachment point along the forearm structure.\nUsed for lighter weapon cores or utility attachments.\nFlow is unlimited — passes signal at whatever rate the weapon demands.",
+
+  "Backpack Hardpoint": "High-capacity rear mount for bulky or long-duration systems.\nTypically used for missile racks or sustained-fire weapons.\nFlow is unlimited — passes signal at whatever rate the weapon demands.",
+
+  "Torso Mechanical Hardpoint": "Core structural anchor point on the frame's torso.\nReceives mechanical output from connected subsystems.\nNo flow restriction — accepts input at full demand rate.",
+
+  "Waist Mechanical Hardpoint": "Rotational joint anchor at the frame's waist section.\nChannels mechanical force for torso traverse and stability.\nNo flow restriction — accepts input at full demand rate.",
+
+  "L Arm Mechanical Hardpoint": "Left arm structural interface for mechanical drive systems.\nDirects actuator output to the left limb assembly.\nNo flow restriction — accepts input at full demand rate.",
+
+  "R Arm Mechanical Hardpoint": "Right arm structural interface for mechanical drive systems.\nDirects actuator output to the right limb assembly.\nNo flow restriction — accepts input at full demand rate.",
+
+  "L Leg Mechanical Hardpoint": "Left leg drive interface connecting to locomotion systems.\nTransfers mechanical power to the left leg actuators.\nNo flow restriction — accepts input at full demand rate.",
+
+  "R Leg Mechanical Hardpoint": "Right leg drive interface connecting to locomotion systems.\nTransfers mechanical power to the right leg actuators.\nNo flow restriction — accepts input at full demand rate.",
+
+  "Head Mechanical Hardpoint": "Mounting interface at the frame's head unit.\nSupports sensor arrays and targeting systems requiring mechanical input.\nNo flow restriction — accepts input at full demand rate.",
+
+  "Backpack Mechanical Hardpoint": "Rear structural anchor for heavy back-mounted mechanical loads.\nUsed for propulsion packs, storage frames, or support systems.\nNo flow restriction — accepts input at full demand rate."
 }
